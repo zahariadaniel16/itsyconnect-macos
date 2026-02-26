@@ -2,13 +2,10 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  getAppVersions,
-  getVersionBuild,
-} from "@/lib/mock-data";
 import { useApps } from "@/lib/apps-context";
+import { useVersions } from "@/lib/versions-context";
+import type { AscVersion } from "@/lib/asc/version-types";
 import { AppIcon } from "@/components/app-icon";
 import {
   DownloadSimple,
@@ -45,19 +42,22 @@ import { DAILY_REVENUE } from "@/lib/mock-sales";
 
 // ---------- Constants ----------
 
-const STATE_VARIANTS: Record<
-  string,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  READY_FOR_SALE: "default",
-  READY_FOR_DISTRIBUTION: "default",
-  PREPARE_FOR_SUBMISSION: "secondary",
-  WAITING_FOR_REVIEW: "outline",
-  IN_REVIEW: "outline",
-  ACCEPTED: "default",
-  REJECTED: "destructive",
-  METADATA_REJECTED: "destructive",
-  DEVELOPER_REJECTED: "destructive",
+const LIVE_STATES = new Set([
+  "READY_FOR_SALE",
+  "READY_FOR_DISTRIBUTION",
+  "ACCEPTED",
+]);
+
+const STATE_BADGE_CLASSES: Record<string, string> = {
+  READY_FOR_SALE: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25",
+  READY_FOR_DISTRIBUTION: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25",
+  ACCEPTED: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25",
+  IN_REVIEW: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/25",
+  WAITING_FOR_REVIEW: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/25",
+  PREPARE_FOR_SUBMISSION: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/25",
+  REJECTED: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/25",
+  METADATA_REJECTED: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/25",
+  DEVELOPER_REJECTED: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/25",
 };
 
 const STATE_DOT_COLORS: Record<string, string> = {
@@ -84,6 +84,34 @@ function stateLabel(state: string): string {
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Pick at most 2 versions per platform for the overview:
+ * the newest live version + the newest non-live version (if any).
+ */
+function pickOverviewVersions(versions: AscVersion[]): AscVersion[] {
+  const byPlatform = new Map<string, AscVersion[]>();
+  for (const v of versions) {
+    const p = v.attributes.platform;
+    if (!byPlatform.has(p)) byPlatform.set(p, []);
+    byPlatform.get(p)!.push(v);
+  }
+
+  const result: AscVersion[] = [];
+  for (const platformVersions of byPlatform.values()) {
+    // ASC returns newest first
+    const live = platformVersions.find((v) =>
+      LIVE_STATES.has(v.attributes.appVersionState),
+    );
+    const pending = platformVersions.find(
+      (v) => !LIVE_STATES.has(v.attributes.appVersionState),
+    );
+    // Show pending first (actionable), then live
+    if (pending) result.push(pending);
+    if (live) result.push(live);
+  }
+  return result;
 }
 
 // ---------- Chart configs ----------
@@ -134,11 +162,11 @@ function KpiCard({
 
 export default function AppOverviewPage() {
   const { appId } = useParams<{ appId: string }>();
-  const { apps, loading } = useApps();
+  const { apps, loading: appsLoading } = useApps();
+  const { versions, loading: versionsLoading } = useVersions();
   const app = apps.find((a) => a.id === appId);
-  const versions = getAppVersions(appId);
 
-  if (loading) {
+  if (appsLoading || versionsLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
@@ -194,50 +222,45 @@ export default function AppOverviewPage() {
 
       {/* Version status cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {versions.map((version) => {
-          const build = getVersionBuild(version.id);
-          return (
-            <Link
-              key={version.id}
-              href={`/dashboard/apps/${appId}/store-listing?version=${version.id}`}
-              className="block"
-            >
-              <Card className="transition-colors hover:bg-accent/50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {PLATFORM_LABELS[version.platform] ?? version.platform}
-                  </CardTitle>
-                  <Badge
-                    variant={
-                      STATE_VARIANTS[version.appVersionState] ?? "secondary"
-                    }
-                  >
-                    {stateLabel(version.appVersionState)}
-                  </Badge>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold font-mono">
-                      {version.versionString}
-                    </span>
-                    <span
-                      className={`size-2 rounded-full ${STATE_DOT_COLORS[version.appVersionState] ?? "bg-muted-foreground"}`}
-                    />
-                  </div>
-                  {build && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Build {build.buildNumber} &middot;{" "}
-                      {new Date(build.uploadedDate).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
+        {pickOverviewVersions(versions).map((version) => (
+          <Link
+            key={version.id}
+            href={`/dashboard/apps/${appId}/store-listing?version=${version.id}`}
+            className="block"
+          >
+            <Card className="transition-colors hover:bg-accent/50">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {PLATFORM_LABELS[version.attributes.platform] ?? version.attributes.platform}
+                </CardTitle>
+                <span
+                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${STATE_BADGE_CLASSES[version.attributes.appVersionState] ?? "bg-muted text-muted-foreground border-border"}`}
+                >
+                  {stateLabel(version.attributes.appVersionState)}
+                </span>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono">
+                    {version.attributes.versionString}
+                  </span>
+                  <span
+                    className={`size-2 rounded-full ${STATE_DOT_COLORS[version.attributes.appVersionState] ?? "bg-muted-foreground"}`}
+                  />
+                </div>
+                {version.build && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Build {version.build.attributes.version} &middot;{" "}
+                    {new Date(version.build.attributes.uploadedDate).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
 
       {/* KPI cards */}

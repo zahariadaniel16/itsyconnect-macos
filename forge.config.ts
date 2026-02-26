@@ -30,9 +30,7 @@ const config: ForgeConfig = {
     new MakerDMG({
       format: "ULFO",
     }),
-    new MakerPKG({
-      isVersionChecked: false,
-    }),
+    new MakerPKG({}),
   ],
 };
 

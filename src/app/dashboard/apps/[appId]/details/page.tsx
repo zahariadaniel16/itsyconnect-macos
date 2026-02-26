@@ -12,12 +12,32 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SpinnerGap } from "@phosphor-icons/react";
 import { useApps } from "@/lib/apps-context";
+import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
+
+const AGE_RATING_LABELS: Record<string, string> = {
+  FOUR_PLUS: "4+",
+  NINE_PLUS: "9+",
+  TWELVE_PLUS: "12+",
+  SEVENTEEN_PLUS: "17+",
+};
 
 export default function AppDetailsPage() {
   const { appId } = useParams<{ appId: string }>();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
+  const { appInfos, loading: infoLoading } = useAppInfo(appId);
+  const appInfo = pickAppInfo(appInfos);
+  const appInfoId = appInfo?.id ?? "";
+
+  const { localizations, loading: locLoading } = useAppInfoLocalizations(appId, appInfoId);
+
+  // Find primary locale localization
+  const primaryLoc = localizations.find(
+    (l) => l.attributes.locale === app?.primaryLocale,
+  ) ?? localizations[0];
 
   if (!app) {
     return (
@@ -26,6 +46,18 @@ export default function AppDetailsPage() {
       </div>
     );
   }
+
+  if (infoLoading || locLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const ageRating = appInfo?.attributes.appStoreAgeRating;
+  const primaryCategoryId = appInfo?.primaryCategory?.id ?? "";
+  const secondaryCategoryId = appInfo?.secondaryCategory?.id ?? "";
 
   return (
     <div className="space-y-8">
@@ -38,6 +70,29 @@ export default function AppDetailsPage() {
         </div>
       </section>
 
+      {/* Name & subtitle (from app info localizations) */}
+      {primaryLoc && (
+        <section className="space-y-2">
+          <h3 className="section-title">Name &amp; subtitle</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">Name</label>
+              <Input
+                defaultValue={primaryLoc.attributes.name ?? ""}
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">Subtitle</label>
+              <Input
+                defaultValue={primaryLoc.attributes.subtitle ?? ""}
+                className="text-sm"
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Base language */}
       <section className="space-y-2">
         <h3 className="section-title">Base language</h3>
@@ -46,12 +101,16 @@ export default function AppDetailsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="en-US">English (US)</SelectItem>
-            <SelectItem value="en-GB">English (UK)</SelectItem>
-            <SelectItem value="de-DE">German</SelectItem>
-            <SelectItem value="fr-FR">French</SelectItem>
-            <SelectItem value="es-ES">Spanish</SelectItem>
-            <SelectItem value="ja">Japanese</SelectItem>
+            {localizations.map((loc) => (
+              <SelectItem key={loc.attributes.locale} value={loc.attributes.locale}>
+                {loc.attributes.locale}
+              </SelectItem>
+            ))}
+            {localizations.length === 0 && (
+              <SelectItem value={app.primaryLocale}>
+                {app.primaryLocale}
+              </SelectItem>
+            )}
           </SelectContent>
         </Select>
       </section>
@@ -64,44 +123,15 @@ export default function AppDetailsPage() {
             <label className="text-sm text-muted-foreground">
               Primary category
             </label>
-            <Select defaultValue="utilities">
-              <SelectTrigger className="text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="utilities">Utilities</SelectItem>
-                <SelectItem value="productivity">Productivity</SelectItem>
-                <SelectItem value="lifestyle">Lifestyle</SelectItem>
-                <SelectItem value="photo-video">Photo & Video</SelectItem>
-              </SelectContent>
-            </Select>
+            <ReadOnlyField label="" value={primaryCategoryId || "Not set"} />
           </div>
           <div className="space-y-2">
             <label className="text-sm text-muted-foreground">
               Secondary category
             </label>
-            <Select defaultValue="none">
-              <SelectTrigger className="text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="utilities">Utilities</SelectItem>
-                <SelectItem value="productivity">Productivity</SelectItem>
-                <SelectItem value="lifestyle">Lifestyle</SelectItem>
-              </SelectContent>
-            </Select>
+            <ReadOnlyField label="" value={secondaryCategoryId || "None"} />
           </div>
         </div>
-      </section>
-
-      {/* Copyright */}
-      <section className="space-y-2">
-        <h3 className="section-title">Copyright</h3>
-        <Input
-          defaultValue="2026 Nick Ustinov"
-          className="max-w-md text-sm"
-        />
       </section>
 
       {/* Age rating */}
@@ -110,9 +140,8 @@ export default function AppDetailsPage() {
         <div className="flex gap-4">
           <Card className="w-32">
             <CardContent className="flex flex-col items-center justify-center py-4">
-              <span className="text-2xl font-bold">4+</span>
-              <span className="text-xs text-muted-foreground">
-                173 territories
+              <span className="text-2xl font-bold">
+                {ageRating ? (AGE_RATING_LABELS[ageRating] ?? ageRating) : "–"}
               </span>
             </CardContent>
           </Card>
@@ -125,56 +154,21 @@ export default function AppDetailsPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm text-muted-foreground">
-              Support URL
-            </label>
-            <Input
-              defaultValue="https://example.com/support"
-              placeholder="https://..."
-              className="font-mono text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              Marketing URL
-            </label>
-            <Input
-              defaultValue="https://example.com"
-              placeholder="https://..."
-              className="font-mono text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
               Privacy policy URL
             </label>
             <Input
-              defaultValue="https://example.com/privacy"
+              defaultValue={primaryLoc?.attributes.privacyPolicyUrl ?? ""}
               placeholder="https://..."
               className="font-mono text-sm"
             />
           </div>
-        </div>
-      </section>
-
-      {/* App Store server notifications */}
-      <section className="space-y-2">
-        <h3 className="section-title">App Store server notifications</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm text-muted-foreground">
-              Production URL
+              Privacy choices URL
             </label>
             <Input
-              placeholder="https://"
-              className="font-mono text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              Sandbox URL
-            </label>
-            <Input
-              placeholder="https://"
+              defaultValue={primaryLoc?.attributes.privacyChoicesUrl ?? ""}
+              placeholder="https://..."
               className="font-mono text-sm"
             />
           </div>
@@ -214,7 +208,7 @@ function ReadOnlyField({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-sm text-muted-foreground">{label}</p>
+      {label && <p className="text-sm text-muted-foreground">{label}</p>}
       <p className={`text-sm font-medium ${mono ? "font-mono" : ""}`}>
         {value}
       </p>

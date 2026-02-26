@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cacheInvalidate, cacheInvalidatePrefix } from "@/lib/cache";
+
 import { listApps } from "@/lib/asc/apps";
+import { listVersions } from "@/lib/asc/versions";
+import { listLocalizations } from "@/lib/asc/localizations";
+import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
+import { listScreenshotSets } from "@/lib/asc/screenshots";
 import { hasCredentials } from "@/lib/asc/client";
 
 const refreshSchema = z.object({
@@ -39,6 +44,21 @@ export async function POST(request: Request) {
     // Re-fetch the resource
     if (resource === "apps") {
       await listApps(true);
+    } else if (resource.startsWith("versions:")) {
+      const appId = resource.replace("versions:", "");
+      await listVersions(appId, true);
+    } else if (resource.startsWith("localizations:")) {
+      const versionId = resource.replace("localizations:", "");
+      await listLocalizations(versionId, true);
+    } else if (resource.startsWith("appInfos:")) {
+      const appId = resource.replace("appInfos:", "");
+      await listAppInfos(appId, true);
+    } else if (resource.startsWith("appInfoLocalizations:")) {
+      const appInfoId = resource.replace("appInfoLocalizations:", "");
+      await listAppInfoLocalizations(appInfoId, true);
+    } else if (resource.startsWith("screenshotSets:")) {
+      const localizationId = resource.replace("screenshotSets:", "");
+      await listScreenshotSets(localizationId, true);
     }
 
     return NextResponse.json({ ok: true });

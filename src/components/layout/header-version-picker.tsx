@@ -17,11 +17,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useVersions } from "@/lib/versions-context";
 import {
-  getAppPlatforms,
+  getVersionPlatforms,
   getVersionsByPlatform,
   resolveVersion,
-} from "@/lib/mock-data";
+} from "@/lib/asc/version-types";
 
 const VERSION_PAGES = new Set(["store-listing", "screenshots", "review"]);
 const NEW_VERSION_PAGES = new Set(["", "store-listing", "screenshots", "review"]);
@@ -65,6 +66,7 @@ export function HeaderVersionPicker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { versions } = useVersions();
 
   if (!appId) return null;
 
@@ -91,13 +93,13 @@ export function HeaderVersionPicker() {
   }
 
   const showVersionPicker = VERSION_PAGES.has(pageSegment);
-  const platforms = getAppPlatforms(appId);
+  const platforms = getVersionPlatforms(versions);
   const versionParam = searchParams.get("version");
-  const selectedVersion = resolveVersion(appId, versionParam);
-  const currentPlatform = selectedVersion?.platform ?? platforms[0] ?? "IOS";
-  const platformVersions = getVersionsByPlatform(appId, currentPlatform);
+  const selectedVersion = resolveVersion(versions, versionParam);
+  const currentPlatform = selectedVersion?.attributes.platform ?? platforms[0] ?? "IOS";
+  const platformVersions = getVersionsByPlatform(versions, currentPlatform);
   const readOnly = selectedVersion
-    ? !EDITABLE_STATES.has(selectedVersion.appVersionState)
+    ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : true;
 
   function navigate(versionId: string) {
@@ -107,9 +109,9 @@ export function HeaderVersionPicker() {
   }
 
   function handlePlatformChange(platform: string) {
-    const versions = getVersionsByPlatform(appId!, platform);
-    if (versions.length > 0) {
-      navigate(versions[0].id);
+    const pvs = getVersionsByPlatform(versions, platform);
+    if (pvs.length > 0) {
+      navigate(pvs[0].id);
     }
   }
 
@@ -141,7 +143,7 @@ export function HeaderVersionPicker() {
             <SelectContent>
               {platformVersions.map((v) => (
                 <SelectItem key={v.id} value={v.id} className="font-mono">
-                  {v.versionString}
+                  {v.attributes.versionString}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -150,9 +152,9 @@ export function HeaderVersionPicker() {
           {selectedVersion && (
             <span className="ml-1 hidden items-center gap-1.5 text-xs text-muted-foreground md:flex">
               <span
-                className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[selectedVersion.appVersionState] ?? "bg-muted-foreground"}`}
+                className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[selectedVersion.attributes.appVersionState] ?? "bg-muted-foreground"}`}
               />
-              {stateLabel(selectedVersion.appVersionState)}
+              {stateLabel(selectedVersion.attributes.appVersionState)}
             </span>
           )}
         </>

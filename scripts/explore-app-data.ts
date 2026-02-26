@@ -58,7 +58,7 @@ async function getAll(token: string, path: string, params?: Record<string, strin
   while (url) {
     requestCount++;
     console.log(`  [${requestCount}] GET ${url.replace(BASE, "")}`);
-    const res = await fetch(url, {
+    const res: Response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
@@ -66,7 +66,7 @@ async function getAll(token: string, path: string, params?: Record<string, strin
       console.error(`  ✗ HTTP ${res.status}: ${text.slice(0, 300)}`);
       break;
     }
-    const json = await res.json();
+    const json: any = await res.json();
     if (json.data) allData.push(...(Array.isArray(json.data) ? json.data : [json.data]));
     if (json.included) allIncluded.push(...json.included);
     url = json.links?.next ?? null;

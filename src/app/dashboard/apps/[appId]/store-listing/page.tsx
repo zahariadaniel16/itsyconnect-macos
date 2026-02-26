@@ -22,15 +22,16 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AppWindow, Lock, PencilSimple, Plus } from "@phosphor-icons/react";
+import { AppWindow, Lock, PencilSimple, Plus, SpinnerGap } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import {
-  getAppVersions,
-  getVersionLocalizations,
-  getVersionBuild,
-  resolveVersion,
-} from "@/lib/mock-data";
 import { useApps } from "@/lib/apps-context";
+import { useVersions } from "@/lib/versions-context";
+import { resolveVersion } from "@/lib/asc/version-types";
+import { useLocalizations } from "@/lib/hooks/use-localizations";
+import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
+import type { AscLocalization } from "@/lib/asc/localizations";
+import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
 import {
   localeName,
   LOCALE_NAMES,
@@ -44,6 +45,7 @@ const EDITABLE_STATES = new Set([
   "DEVELOPER_REJECTED",
 ]);
 
+
 interface LocaleFields {
   name: string;
   subtitle: string;
@@ -51,6 +53,15 @@ interface LocaleFields {
   keywords: string;
   whatsNew: string;
   promotionalText: string;
+}
+
+/** Sort locales: primary locale first, rest alphabetical by display name. */
+function sortLocales(codes: string[], primaryLocale: string): string[] {
+  return [...codes].sort((a, b) => {
+    if (a === primaryLocale) return -1;
+    if (b === primaryLocale) return 1;
+    return localeName(a).localeCompare(localeName(b));
+  });
 }
 
 function emptyLocaleFields(): LocaleFields {
@@ -64,16 +75,27 @@ function emptyLocaleFields(): LocaleFields {
   };
 }
 
-function buildLocaleData(versionId: string): Record<string, LocaleFields> {
+function buildLocaleData(
+  localizations: AscLocalization[],
+  appInfoLocs: AscAppInfoLocalization[],
+): Record<string, LocaleFields> {
   const data: Record<string, LocaleFields> = {};
-  for (const loc of getVersionLocalizations(versionId)) {
-    data[loc.locale] = {
-      name: loc.name,
-      subtitle: loc.subtitle ?? "",
-      description: loc.description ?? "",
-      keywords: loc.keywords ?? "",
-      whatsNew: loc.whatsNew ?? "",
-      promotionalText: loc.promotionalText ?? "",
+
+  // Build lookup for app info localizations by locale
+  const infoByLocale = new Map<string, AscAppInfoLocalization>();
+  for (const loc of appInfoLocs) {
+    infoByLocale.set(loc.attributes.locale, loc);
+  }
+
+  for (const loc of localizations) {
+    const info = infoByLocale.get(loc.attributes.locale);
+    data[loc.attributes.locale] = {
+      name: info?.attributes.name ?? "",
+      subtitle: info?.attributes.subtitle ?? "",
+      description: loc.attributes.description ?? "",
+      keywords: loc.attributes.keywords ?? "",
+      whatsNew: loc.attributes.whatsNew ?? "",
+      promotionalText: loc.attributes.promotionalText ?? "",
     };
   }
   return data;
@@ -84,25 +106,31 @@ export default function StoreListingPage() {
   const searchParams = useSearchParams();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const versions = getAppVersions(appId);
+  const { versions, loading: versionsLoading } = useVersions();
 
   const selectedVersion = useMemo(
-    () => resolveVersion(appId, searchParams.get("version")),
-    [appId, searchParams],
+    () => resolveVersion(versions, searchParams.get("version")),
+    [versions, searchParams],
   );
   const versionId = selectedVersion?.id ?? "";
 
   const readOnly = selectedVersion
-    ? !EDITABLE_STATES.has(selectedVersion.appVersionState)
+    ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
-  const [localeData, setLocaleData] = useState<Record<string, LocaleFields>>(
-    () => buildLocaleData(versionId)
-  );
+  const { localizations, loading: locLoading } = useLocalizations(appId, versionId);
 
-  const locales = Object.keys(localeData);
+  // App info localizations for name & subtitle (app-level, not version-specific)
+  const { appInfos, loading: infoLoading } = useAppInfo(appId);
+  const appInfoId = pickAppInfo(appInfos)?.id ?? "";
+  const { localizations: appInfoLocs, loading: appInfoLocLoading } =
+    useAppInfoLocalizations(appId, appInfoId);
 
-  const [selectedLocale, setSelectedLocale] = useState(locales[0] ?? "");
+  const primaryLocale = app?.primaryLocale ?? "";
+
+  const [localeData, setLocaleData] = useState<Record<string, LocaleFields>>({});
+  const [locales, setLocales] = useState<string[]>([]);
+  const [selectedLocale, setSelectedLocale] = useState("");
   const [addLocaleOpen, setAddLocaleOpen] = useState(false);
 
   const current = localeData[selectedLocale] ?? emptyLocaleFields();
@@ -110,13 +138,14 @@ export default function StoreListingPage() {
   const [releaseType, setReleaseType] = useState("manually");
   const [phasedRelease, setPhasedRelease] = useState(false);
 
-  // Reset locale data when version changes via header picker
+  // Reset locale data when localizations change
   useEffect(() => {
-    const data = buildLocaleData(versionId);
+    const data = buildLocaleData(localizations, appInfoLocs);
     setLocaleData(data);
-    const newLocales = Object.keys(data);
-    setSelectedLocale(newLocales[0] ?? "");
-  }, [versionId]);
+    const sorted = sortLocales(Object.keys(data), primaryLocale);
+    setLocales(sorted);
+    setSelectedLocale(sorted[0] ?? "");
+  }, [localizations, appInfoLocs, primaryLocale]);
 
   const updateField = useCallback(
     (field: keyof LocaleFields, value: string) => {
@@ -129,7 +158,11 @@ export default function StoreListingPage() {
   );
 
   function handleAddLocale(locale: string) {
-    setLocaleData((prev) => ({ ...prev, [locale]: emptyLocaleFields() }));
+    setLocaleData((prev) => {
+      const next = { ...prev, [locale]: emptyLocaleFields() };
+      setLocales(sortLocales(Object.keys(next), primaryLocale));
+      return next;
+    });
     setSelectedLocale(locale);
     setAddLocaleOpen(false);
     toast.success(`Added ${localeName(locale)}`);
@@ -143,6 +176,14 @@ export default function StoreListingPage() {
     return (
       <div className="flex items-center justify-center py-20 text-muted-foreground">
         App not found
+      </div>
+    );
+  }
+
+  if (versionsLoading || locLoading || infoLoading || appInfoLocLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -174,7 +215,7 @@ export default function StoreListingPage() {
           <h3 className="section-title">Version</h3>
           <div className="flex items-center gap-2">
             <span className="font-mono text-2xl font-bold tracking-tight">
-              {selectedVersion?.versionString ?? "–"}
+              {selectedVersion?.attributes.versionString ?? "–"}
             </span>
             {!readOnly && (
               <Button
@@ -192,12 +233,12 @@ export default function StoreListingPage() {
         </section>
 
         {/* Locale tabs + add locale */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {locales.length > 0 && (
             <Tabs value={selectedLocale} onValueChange={setSelectedLocale}>
-              <TabsList>
+              <TabsList className="!h-auto flex-wrap justify-start">
                 {locales.map((locale) => (
-                  <TabsTrigger key={locale} value={locale}>
+                  <TabsTrigger key={locale} value={locale} className="flex-none">
                     {localeName(locale)}
                   </TabsTrigger>
                 ))}
@@ -388,7 +429,7 @@ export default function StoreListingPage() {
         )}
 
         {/* Build */}
-        <BuildSection versionId={selectedVersion?.id ?? ""} />
+        <BuildSection version={selectedVersion} />
 
         {/* Release settings */}
         <section className="space-y-6 pb-8">
@@ -443,8 +484,8 @@ export default function StoreListingPage() {
   );
 }
 
-function BuildSection({ versionId }: { versionId: string }) {
-  const build = getVersionBuild(versionId);
+function BuildSection({ version }: { version?: { build: { id: string; attributes: { version: string; uploadedDate: string } } | null; attributes: { versionString: string } } }) {
+  const build = version?.build;
 
   return (
     <section className="space-y-2">
@@ -455,16 +496,16 @@ function BuildSection({ versionId }: { versionId: string }) {
             <AppWindow size={20} weight="fill" />
           </div>
           <div>
-            <p className="font-semibold">Build {build.buildNumber}</p>
+            <p className="font-semibold">Build {build.attributes.version}</p>
             <p className="text-sm text-muted-foreground">
-              {new Date(build.uploadedDate).toLocaleDateString("en-GB", {
+              {new Date(build.attributes.uploadedDate).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",
                 hour: "2-digit",
                 minute: "2-digit",
               })}{" "}
-              &middot; Version {build.versionString}
+              &middot; Version {version?.attributes.versionString}
             </p>
           </div>
         </div>

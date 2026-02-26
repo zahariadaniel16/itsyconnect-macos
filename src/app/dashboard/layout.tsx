@@ -8,6 +8,7 @@ import { HeaderVersionPicker } from "@/components/layout/header-version-picker";
 import { HeaderBuildsPicker } from "@/components/layout/header-builds-picker";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppsProvider, useApps } from "@/lib/apps-context";
+import { VersionsProvider } from "@/lib/versions-context";
 
 declare global {
   interface Window {
@@ -36,6 +37,7 @@ export default function DashboardLayout({
 }) {
   return (
     <AppsProvider>
+      <VersionsProvider>
       <ReadySignal />
       <SidebarProvider>
         <AppSidebar />
@@ -61,6 +63,7 @@ export default function DashboardLayout({
           </div>
         </SidebarInset>
       </SidebarProvider>
+      </VersionsProvider>
     </AppsProvider>
   );
 }
