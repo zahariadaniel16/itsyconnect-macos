@@ -13,7 +13,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "/dashboard";
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,13 +34,13 @@ function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
+        <Label htmlFor="email">Email</Label>
         <Input
-          id="username"
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
           autoFocus
           required
         />
@@ -75,7 +75,7 @@ export default function LoginPage() {
             <Sailboat size={24} weight="fill" />
           </div>
           <CardTitle className="text-2xl">Itsyship</CardTitle>
-          <CardDescription>Sign in to your App Store Connect dashboard</CardDescription>
+          <CardDescription>App Store Connect, but good.</CardDescription>
         </CardHeader>
         <CardContent>
           <Suspense>

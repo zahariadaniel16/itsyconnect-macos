@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Plugs,
   Trash,
@@ -114,18 +113,48 @@ function CredentialForm({
 }) {
   const [issuerId, setIssuerId] = useState("");
   const [keyId, setKeyId] = useState("");
+  const [keyIdFromFile, setKeyIdFromFile] = useState(false);
   const [privateKey, setPrivateKey] = useState("");
+  const [keyError, setKeyError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [testStatus, setTestStatus] = useState<
+    "idle" | "testing" | "ok" | "error"
+  >("idle");
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setKeyError("");
+    setTestStatus("idle");
+    setPrivateKey("");
+    setKeyId("");
+    setKeyIdFromFile(false);
+
     file.text().then((text) => {
-      setPrivateKey(text);
-      const match = file.name.match(/AuthKey_(\w+)\.p8/);
-      if (match && !keyId) {
+      const trimmed = text.trim();
+
+      if (
+        !trimmed.startsWith("-----BEGIN PRIVATE KEY-----") ||
+        !trimmed.endsWith("-----END PRIVATE KEY-----")
+      ) {
+        setKeyError(
+          "Invalid key file \u2013 expected a .p8 private key from Apple.",
+        );
+        return;
+      }
+
+      setPrivateKey(trimmed);
+
+      const match = file.name.match(/AuthKey_([A-Z0-9]+)\.p8/);
+      if (match) {
         setKeyId(match[1]);
+        setKeyIdFromFile(true);
+      }
+
+      if (issuerId.trim() && (match || keyId.trim())) {
+        setTestStatus("testing");
+        setTimeout(() => setTestStatus("ok"), 800);
       }
     });
   }
@@ -139,6 +168,12 @@ function CredentialForm({
       onSuccess();
     }, 600);
   }
+
+  const canSave =
+    issuerId.trim().length > 0 &&
+    keyId.trim().length > 0 &&
+    privateKey.length > 0 &&
+    !keyError;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -154,17 +189,6 @@ function CredentialForm({
       </section>
 
       <section className="space-y-2">
-        <h3 className="section-title">Key ID</h3>
-        <Input
-          value={keyId}
-          onChange={(e) => setKeyId(e.target.value)}
-          placeholder="XXXXXXXXXX"
-          className="max-w-md font-mono text-sm"
-          required
-        />
-      </section>
-
-      <section className="space-y-2">
         <h3 className="section-title">Private key</h3>
         <Input
           type="file"
@@ -172,22 +196,56 @@ function CredentialForm({
           onChange={handleFileUpload}
           className="max-w-md text-sm"
         />
-        {privateKey && (
-          <p className="text-xs text-muted-foreground">
-            Key loaded ({privateKey.length} characters)
+        {keyError && (
+          <p className="flex items-center gap-1.5 text-xs text-destructive">
+            <XCircle size={14} weight="fill" />
+            {keyError}
           </p>
         )}
-        <Textarea
-          value={privateKey}
-          onChange={(e) => setPrivateKey(e.target.value)}
-          placeholder="Or paste the private key content here..."
-          className="max-w-md font-mono text-xs"
-          rows={4}
-        />
+        {privateKey && !keyError && (
+          <>
+            {testStatus === "testing" && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <SpinnerGap size={14} className="animate-spin" />
+                Testing connection...
+              </p>
+            )}
+            {testStatus === "ok" && (
+              <p className="flex items-center gap-1.5 text-xs text-green-600">
+                <CheckCircle size={14} weight="fill" />
+                Connected {keyIdFromFile && (<>&ndash; key ID <span className="font-mono">{keyId}</span></>)}
+              </p>
+            )}
+            {testStatus === "error" && (
+              <p className="flex items-center gap-1.5 text-xs text-destructive">
+                <XCircle size={14} weight="fill" />
+                Connection failed &ndash; check your credentials.
+              </p>
+            )}
+            {testStatus === "idle" && !keyIdFromFile && (
+              <p className="text-xs text-muted-foreground">
+                Key loaded. Enter the key ID below to continue.
+              </p>
+            )}
+          </>
+        )}
       </section>
 
+      {/* Show key ID input only if not extracted from filename */}
+      {privateKey && !keyIdFromFile && !keyError && (
+        <section className="space-y-2">
+          <h3 className="section-title">Key ID</h3>
+          <Input
+            value={keyId}
+            onChange={(e) => setKeyId(e.target.value)}
+            placeholder="XXXXXXXXXX"
+            className="max-w-md font-mono text-sm"
+          />
+        </section>
+      )}
+
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" disabled={saving || !canSave}>
           {saving ? (
             <>
               <SpinnerGap size={16} className="animate-spin" />
