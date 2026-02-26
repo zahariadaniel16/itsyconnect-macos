@@ -18,6 +18,7 @@ const PAGE_TITLES: Record<string, string> = {
   testflight: "TestFlight",
   reviews: "Reviews",
   analytics: "Analytics",
+  sales: "Sales",
   details: "App details",
 };
 

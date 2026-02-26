@@ -10,6 +10,7 @@ import {
   PaperPlaneTilt,
   ChatsCircle,
   ChartLineUp,
+  CurrencyDollar,
   Info,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
@@ -51,6 +52,7 @@ function getNavGroups(appId: string): NavGroup[] {
       items: [
         { title: "Reviews", href: `${base}/reviews`, icon: ChatsCircle },
         { title: "Analytics", href: `${base}/analytics`, icon: ChartLineUp },
+        { title: "Sales", href: `${base}/sales`, icon: CurrencyDollar },
       ],
     },
     {
