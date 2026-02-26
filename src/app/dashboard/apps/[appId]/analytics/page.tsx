@@ -1,79 +1,393 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   DownloadSimple,
   CurrencyDollar,
-  Bug,
-  Star,
+  Timer,
+  ShieldCheck,
 } from "@phosphor-icons/react";
-import { MOCK_APPS } from "@/lib/mock-data";
+import {
+  DAILY_DOWNLOADS,
+  DAILY_REVENUE,
+  DAILY_ENGAGEMENT,
+  TERRITORIES,
+  formatDate,
+} from "@/lib/mock-analytics";
 
-export default function AnalyticsPage() {
-  const { appId } = useParams<{ appId: string }>();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+// ---------- Chart configs ----------
 
-  if (!app) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        App not found
-      </div>
-    );
-  }
+const downloadsConfig = {
+  firstTime: { label: "First-time", color: "var(--color-chart-1)" },
+  redownload: { label: "Redownload", color: "var(--color-chart-2)" },
+  update: { label: "Update", color: "var(--color-chart-3)" },
+} satisfies ChartConfig;
+
+const revenueConfig = {
+  proceeds: { label: "Proceeds", color: "var(--color-chart-1)" },
+  sales: { label: "Sales", color: "var(--color-chart-2)" },
+} satisfies ChartConfig;
+
+const territoryConfig = {
+  downloads: { label: "Downloads", color: "var(--color-chart-1)" },
+} satisfies ChartConfig;
+
+const funnelConfig = {
+  impressions: { label: "Impressions", color: "var(--color-chart-3)" },
+  pageViews: { label: "Page views", color: "var(--color-chart-2)" },
+  downloads: { label: "Downloads", color: "var(--color-chart-1)" },
+} satisfies ChartConfig;
+
+// ---------- Helpers ----------
+
+function pctChange(current: number, previous: number): string {
+  if (previous === 0) return "+0%";
+  const pct = ((current - previous) / previous) * 100;
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(1)}%`;
+}
+
+function KpiCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+}: {
+  title: string;
+  value: string;
+  change: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon size={16} className="text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold tabular-nums">{value}</div>
+        <p className="text-xs text-muted-foreground">
+          {change} from previous period
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------- Page ----------
+
+export default function AnalyticsOverviewPage() {
+  const searchParams = useSearchParams();
+  const days = searchParams.get("range") === "7d" ? 7 : 30;
+
+  const downloads = useMemo(() => DAILY_DOWNLOADS.slice(-days), [days]);
+  const revenue = useMemo(() => DAILY_REVENUE.slice(-days), [days]);
+
+  const totalDownloads = downloads.reduce(
+    (s, d) => s + d.firstTime + d.redownload + d.update,
+    0,
+  );
+  const prevDownloads = DAILY_DOWNLOADS.slice(-(days * 2), -days).reduce(
+    (s, d) => s + d.firstTime + d.redownload + d.update,
+    0,
+  );
+
+  const totalRevenue = revenue.reduce((s, d) => s + d.proceeds, 0);
+  const prevRevenue = DAILY_REVENUE.slice(-(days * 2), -days).reduce(
+    (s, d) => s + d.proceeds,
+    0,
+  );
+
+  const totalFirstTime = downloads.reduce((s, d) => s + d.firstTime, 0);
+
+  const engagement = DAILY_ENGAGEMENT.slice(-days);
+  const totalImpressions = engagement.reduce((s, d) => s + d.impressions, 0);
+  const totalPageViews = engagement.reduce((s, d) => s + d.pageViews, 0);
+
+  const funnelData = [
+    { stage: "impressions", value: totalImpressions },
+    { stage: "pageViews", value: totalPageViews },
+    { stage: "downloads", value: totalFirstTime },
+  ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-
+      {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Downloads"
+          value={totalDownloads.toLocaleString()}
+          change={pctChange(totalDownloads, prevDownloads)}
+          icon={DownloadSimple}
+        />
+        <KpiCard
+          title="Revenue"
+          value={`$${totalRevenue.toLocaleString()}`}
+          change={pctChange(totalRevenue, prevRevenue)}
+          icon={CurrencyDollar}
+        />
+        <KpiCard
+          title="First-time downloads"
+          value={totalFirstTime.toLocaleString()}
+          change={pctChange(
+            totalFirstTime,
+            DAILY_DOWNLOADS.slice(-(days * 2), -days).reduce(
+              (s, d) => s + d.firstTime,
+              0,
+            ),
+          )}
+          icon={Timer}
+        />
+        <KpiCard
+          title="Crash-free rate"
+          value="99.4%"
+          change="+0.2%"
+          icon={ShieldCheck}
+        />
+      </div>
+
+      {/* Charts row 1 */}
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Downloads</CardTitle>
-            <DownloadSimple size={16} className="text-muted-foreground" />
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Downloads over time
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,247</div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
+            <ChartContainer
+              config={downloadsConfig}
+              className="h-[280px] w-full"
+            >
+              <AreaChart data={downloads} accessibilityLayer>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={formatDate}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tickLine={false} axisLine={false} width={40} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(v) => formatDate(v as string)}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Area
+                  type="monotone"
+                  dataKey="update"
+                  stackId="1"
+                  fill="var(--color-update)"
+                  stroke="var(--color-update)"
+                  fillOpacity={0.4}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="redownload"
+                  stackId="1"
+                  fill="var(--color-redownload)"
+                  stroke="var(--color-redownload)"
+                  fillOpacity={0.4}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="firstTime"
+                  stackId="1"
+                  fill="var(--color-firstTime)"
+                  stroke="var(--color-firstTime)"
+                  fillOpacity={0.4}
+                />
+              </AreaChart>
+            </ChartContainer>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
-            <CurrencyDollar size={16} className="text-muted-foreground" />
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Revenue over time
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$2,340</div>
-            <p className="text-xs text-muted-foreground">+8% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Crash rate</CardTitle>
-            <Bug size={16} className="text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0.3%</div>
-            <p className="text-xs text-muted-foreground">-0.1% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rating</CardTitle>
-            <Star size={16} className="text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">4.5</div>
-            <p className="text-xs text-muted-foreground">15 new reviews</p>
+            <ChartContainer
+              config={revenueConfig}
+              className="h-[280px] w-full"
+            >
+              <LineChart data={revenue} accessibilityLayer>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={formatDate}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={50}
+                  tickFormatter={(v) => `$${v}`}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(v) => formatDate(v as string)}
+                      formatter={(value, name) => (
+                        <div className="flex flex-1 items-center justify-between gap-2 leading-none">
+                          <span className="text-muted-foreground">
+                            {name === "proceeds" ? "Proceeds" : "Sales"}
+                          </span>
+                          <span className="font-mono font-medium tabular-nums">
+                            ${(value as number).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Line
+                  type="monotone"
+                  dataKey="proceeds"
+                  stroke="var(--color-proceeds)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="var(--color-sales)"
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="4 4"
+                />
+              </LineChart>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
-        <p className="text-sm text-muted-foreground">
-          Charts and detailed analytics will be available when connected to App
-          Store Connect.
-        </p>
+      {/* Charts row 2 */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Top territories
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={territoryConfig}
+              className="h-[320px] w-full"
+            >
+              <BarChart
+                data={TERRITORIES}
+                layout="vertical"
+                accessibilityLayer
+              >
+                <CartesianGrid horizontal={false} />
+                <YAxis
+                  dataKey="territory"
+                  type="category"
+                  tickLine={false}
+                  axisLine={false}
+                  width={100}
+                  className="text-xs"
+                />
+                <XAxis type="number" tickLine={false} axisLine={false} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar
+                  dataKey="downloads"
+                  fill="var(--color-downloads)"
+                  radius={[0, 4, 4, 0]}
+                />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Conversion funnel
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={funnelConfig}
+              className="h-[320px] w-full"
+            >
+              <BarChart data={funnelData} accessibilityLayer>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="stage"
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) =>
+                    funnelConfig[v as keyof typeof funnelConfig]?.label ?? v
+                  }
+                />
+                <YAxis tickLine={false} axisLine={false} width={60} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      nameKey="stage"
+                      labelFormatter={(v) =>
+                        funnelConfig[v as keyof typeof funnelConfig]?.label ?? v
+                      }
+                    />
+                  }
+                />
+                <Bar
+                  dataKey="value"
+                  radius={[4, 4, 0, 0]}
+                  fill="var(--color-chart-1)"
+                />
+              </BarChart>
+            </ChartContainer>
+            <div className="mt-3 flex items-center justify-center gap-6 text-xs text-muted-foreground">
+              <span>
+                Page view rate:{" "}
+                <strong className="text-foreground">
+                  {((totalPageViews / totalImpressions) * 100).toFixed(1)}%
+                </strong>
+              </span>
+              <span>
+                Download rate:{" "}
+                <strong className="text-foreground">
+                  {((totalFirstTime / totalPageViews) * 100).toFixed(1)}%
+                </strong>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
