@@ -5,16 +5,17 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  MOCK_APPS,
   getAppVersions,
   getVersionBuild,
 } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
+import { AppIcon } from "@/components/app-icon";
 import {
-  AppWindow,
   DownloadSimple,
   CurrencyDollar,
   Receipt,
   ShieldCheck,
+  SpinnerGap,
 } from "@phosphor-icons/react";
 import {
   Area,
@@ -133,8 +134,17 @@ function KpiCard({
 
 export default function AppOverviewPage() {
   const { appId } = useParams<{ appId: string }>();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps, loading } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const versions = getAppVersions(appId);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!app) {
     return (
@@ -170,9 +180,12 @@ export default function AppOverviewPage() {
     <div className="space-y-6">
       {/* App header */}
       <div className="flex items-center gap-4">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-b from-blue-500 to-blue-600 text-white shadow-sm">
-          <AppWindow size={28} weight="fill" />
-        </div>
+        <AppIcon
+          iconUrl={app.iconUrl}
+          name={app.name}
+          className="size-14"
+          iconSize={28}
+        />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{app.name}</h1>
           <p className="text-sm text-muted-foreground">{app.bundleId}</p>

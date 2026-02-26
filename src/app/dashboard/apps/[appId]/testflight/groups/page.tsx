@@ -4,12 +4,13 @@ import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LinkSimple } from "@phosphor-icons/react";
-import { MOCK_APPS } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 import { getAppGroups } from "@/lib/mock-testflight";
 
 export default function GroupsPage() {
   const { appId } = useParams<{ appId: string }>();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const groups = useMemo(() => getAppGroups(appId), [appId]);
 
   if (!app) {

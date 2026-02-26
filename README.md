@@ -1,10 +1,10 @@
-<h1 align="center">Itsyship</h1>
+<h1>Itsyship</h1>
 
-<p align="center">
+<p>
   App Store Connect, but good.
 </p>
 
-<p align="center">
+<p>
   <a href="https://github.com/nickustinov/itsyship/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License" /></a>
   <a href="https://github.com/nickustinov/itsyship/actions"><img src="https://img.shields.io/github/actions/workflow/status/nickustinov/itsyship/ci.yml?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/next.js-15-black" alt="Next.js 15" />
@@ -14,7 +14,7 @@
 
 ---
 
-Self-hosted App Store Connect dashboard. One Docker container, one SQLite file, zero cloud dependencies.
+Self-hosted App Store Connect dashboard with optional AI translation/copywriting – BYOK. One Docker container, one SQLite file, zero cloud dependencies.
 
 ## Features
 

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Camera, WarningCircle } from "@phosphor-icons/react";
-import { MOCK_APPS } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 import { getAppFeedback, type MockFeedbackItem } from "@/lib/mock-testflight";
 
 function formatDate(iso: string): string {
@@ -34,7 +34,8 @@ function isWithinDays(iso: string, days: number): boolean {
 export default function FeedbackPage() {
   const { appId } = useParams<{ appId: string }>();
   const router = useRouter();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const allFeedback = useMemo(() => getAppFeedback(appId), [appId]);
 
   const versions = useMemo(

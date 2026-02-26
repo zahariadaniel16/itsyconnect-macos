@@ -16,7 +16,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Star, ChatText, WarningCircle, Translate } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import { MOCK_APPS } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 
 interface MockReview {
   id: string;
@@ -175,7 +175,8 @@ function isNonEnglish(review: MockReview): boolean {
 
 export default function ReviewsPage() {
   const { appId } = useParams<{ appId: string }>();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
 
   const [sortBy, setSortBy] = useState("newest");
   const [ratingFilter, setRatingFilter] = useState("all");

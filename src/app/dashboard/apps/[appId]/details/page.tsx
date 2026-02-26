@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { MOCK_APPS } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 
 export default function AppDetailsPage() {
   const { appId } = useParams<{ appId: string }>();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
 
   if (!app) {
     return (

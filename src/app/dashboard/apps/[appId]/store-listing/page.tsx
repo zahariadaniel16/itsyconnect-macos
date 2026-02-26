@@ -25,12 +25,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppWindow, Lock, PencilSimple, Plus } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
-  MOCK_APPS,
   getAppVersions,
   getVersionLocalizations,
   getVersionBuild,
   resolveVersion,
 } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 import {
   localeName,
   LOCALE_NAMES,
@@ -82,7 +82,8 @@ function buildLocaleData(versionId: string): Record<string, LocaleFields> {
 export default function StoreListingPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const versions = getAppVersions(appId);
 
   const selectedVersion = useMemo(

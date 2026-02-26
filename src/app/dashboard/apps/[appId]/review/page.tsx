@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_APPS, resolveVersion } from "@/lib/mock-data";
+import { resolveVersion } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 
 export default function AppReviewPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const [signInRequired, setSignInRequired] = useState(false);
 
   const selectedVersion = useMemo(

@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MOCK_APPS } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 import {
   getAppTFBuilds,
   MOCK_BETA_GROUPS,
@@ -41,7 +41,8 @@ export default function TestFlightBuildsPage() {
   const { appId } = useParams<{ appId: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const allBuilds = useMemo(() => getAppTFBuilds(appId), [appId]);
 
   const platformFilter = searchParams.get("platform") ?? "all";

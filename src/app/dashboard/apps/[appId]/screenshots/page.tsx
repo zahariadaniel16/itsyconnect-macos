@@ -20,10 +20,10 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  MOCK_APPS,
   getVersionLocalizations,
   resolveVersion,
 } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 import { localeName, LOCALE_NAMES } from "@/lib/asc/locale-names";
 
 const EDITABLE_STATES = new Set([
@@ -36,7 +36,8 @@ const EDITABLE_STATES = new Set([
 export default function ScreenshotsPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
-  const app = MOCK_APPS.find((a) => a.id === appId);
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
 
   const selectedVersion = useMemo(
     () => resolveVersion(appId, searchParams.get("version")),

@@ -9,7 +9,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { MOCK_APPS } from "@/lib/mock-data";
+import { useApps } from "@/lib/apps-context";
 import { getTFBuild, getGroup } from "@/lib/mock-testflight";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -33,7 +33,8 @@ export function DashboardBreadcrumb() {
   const pathname = usePathname();
   const { appId } = useParams<{ appId?: string }>();
 
-  const app = appId ? MOCK_APPS.find((a) => a.id === appId) : undefined;
+  const { apps } = useApps();
+  const app = appId ? apps.find((a) => a.id === appId) : undefined;
   const isSettings = pathname.startsWith("/dashboard/settings");
 
   // Extract all segments after /dashboard/apps/[appId]/
