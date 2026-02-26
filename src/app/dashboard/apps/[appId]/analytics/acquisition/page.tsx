@@ -46,7 +46,7 @@ const sourceConfig = {
   search: { label: "App Store search", color: "var(--color-chart-1)" },
   browse: { label: "App Store browse", color: "var(--color-chart-2)" },
   webReferrer: { label: "Web referrer", color: "var(--color-chart-3)" },
-  direct: { label: "Direct / other", color: "var(--color-chart-4)" },
+  unavailable: { label: "Unavailable", color: "var(--color-chart-4)" },
   count: { label: "Downloads" },
 } satisfies ChartConfig;
 
@@ -59,7 +59,7 @@ const downloadSourceConfig = {
   search: { label: "Search", color: "var(--color-chart-1)" },
   browse: { label: "Browse", color: "var(--color-chart-2)" },
   webReferrer: { label: "Web referrer", color: "var(--color-chart-3)" },
-  other: { label: "Other", color: "var(--color-chart-4)" },
+  unavailable: { label: "Unavailable", color: "var(--color-chart-4)" },
 } satisfies ChartConfig;
 
 const webPreviewConfig = {
@@ -232,9 +232,9 @@ export default function AcquisitionPage() {
                 radius={[0, 0, 0, 0]}
               />
               <Bar
-                dataKey="other"
+                dataKey="unavailable"
                 stackId="1"
-                fill="var(--color-other)"
+                fill="var(--color-unavailable)"
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>

@@ -97,7 +97,7 @@ export const DAILY_DOWNLOADS_BY_SOURCE = ANALYTICS_DAYS.map((date, i) => ({
   search: search[i],
   browse: browse[i],
   webReferrer: webRef[i],
-  other: Math.max(0, firstTime[i] - search[i] - browse[i] - webRef[i]),
+  unavailable: Math.max(0, firstTime[i] - search[i] - browse[i] - webRef[i]),
 }));
 
 // ---------- Version sessions ----------
@@ -162,7 +162,7 @@ export const DISCOVERY_SOURCES = [
   { source: "search", count: 812, fill: "var(--color-search)" },
   { source: "browse", count: 451, fill: "var(--color-browse)" },
   { source: "webReferrer", count: 271, fill: "var(--color-webReferrer)" },
-  { source: "direct", count: 268, fill: "var(--color-direct)" },
+  { source: "unavailable", count: 268, fill: "var(--color-unavailable)" },
 ];
 
 export const TOP_REFERRERS = [
@@ -172,7 +172,7 @@ export const TOP_REFERRERS = [
   { referrer: "reddit.com", pageViews: 134, downloads: 31 },
   { referrer: "macrumors.com", pageViews: 89, downloads: 22 },
   { referrer: "9to5mac.com", pageViews: 67, downloads: 18 },
-  { referrer: "hackernews.com", pageViews: 52, downloads: 14 },
+  { referrer: "news.ycombinator.com", pageViews: 52, downloads: 14 },
   { referrer: "macstories.net", pageViews: 38, downloads: 11 },
 ];
 

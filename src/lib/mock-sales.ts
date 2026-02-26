@@ -86,22 +86,23 @@ export const REVENUE_BY_PRODUCT = [
   },
 ];
 
-// ---------- Transaction types ----------
+// ---------- Transaction types (matches ASC product type identifiers) ----------
 
 export const TRANSACTION_TYPES = [
-  { type: "newPurchase", label: "New purchase", count: 838, fill: "var(--color-newPurchase)" },
-  { type: "restored", label: "Restored", count: 124, fill: "var(--color-restored)" },
+  { type: "iapPurchase", label: "IAP purchase", count: 838, fill: "var(--color-iapPurchase)" },
+  { type: "restoredIap", label: "Restored IAP", count: 124, fill: "var(--color-restoredIap)" },
   { type: "refund", label: "Refund", count: 12, fill: "var(--color-refund)" },
 ];
 
-// ---------- Payment methods (from analytics COMMERCE data) ----------
+// ---------- Proceeds by currency (from sales reports Currency of Proceeds) ----------
 
-export const PAYMENT_METHODS = [
-  { method: "visa", label: "Visa", count: 298, fill: "var(--color-visa)" },
-  { method: "mastercard", label: "Mastercard", count: 267, fill: "var(--color-mastercard)" },
-  { method: "appleBalance", label: "Apple balance", count: 142, fill: "var(--color-appleBalance)" },
-  { method: "amex", label: "Amex", count: 78, fill: "var(--color-amex)" },
-  { method: "other", label: "Other", count: 53, fill: "var(--color-other)" },
+export const PROCEEDS_BY_CURRENCY = [
+  { currency: "usd", label: "USD", amount: 2839, fill: "var(--color-usd)" },
+  { currency: "eur", label: "EUR", amount: 3022, fill: "var(--color-eur)" },
+  { currency: "gbp", label: "GBP", amount: 810, fill: "var(--color-gbp)" },
+  { currency: "cad", label: "CAD", amount: 373, fill: "var(--color-cad)" },
+  { currency: "aud", label: "AUD", amount: 309, fill: "var(--color-aud)" },
+  { currency: "other", label: "Other", amount: 273, fill: "var(--color-other)" },
 ];
 
 // ---------- Monthly summary ----------

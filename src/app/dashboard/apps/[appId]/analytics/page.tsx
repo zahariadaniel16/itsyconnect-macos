@@ -32,7 +32,9 @@ import {
   DAILY_DOWNLOADS,
   DAILY_REVENUE,
   DAILY_ENGAGEMENT,
+  DAILY_SESSIONS,
   TERRITORIES,
+  CRASHES,
   formatDate,
 } from "@/lib/mock-analytics";
 
@@ -121,6 +123,14 @@ export default function AnalyticsOverviewPage() {
 
   const totalFirstTime = downloads.reduce((s, d) => s + d.firstTime, 0);
 
+  const sessionSlice = DAILY_SESSIONS.slice(-days);
+  const totalDevices = sessionSlice.reduce((s, d) => s + d.uniqueDevices, 0);
+  const crashDevices = CRASHES.reduce((s, c) => s + c.uniqueDevices, 0);
+  const crashFreeRate =
+    totalDevices > 0
+      ? ((1 - crashDevices / totalDevices) * 100).toFixed(1)
+      : "100";
+
   const engagement = DAILY_ENGAGEMENT.slice(-days);
   const totalImpressions = engagement.reduce((s, d) => s + d.impressions, 0);
   const totalPageViews = engagement.reduce((s, d) => s + d.pageViews, 0);
@@ -161,8 +171,8 @@ export default function AnalyticsOverviewPage() {
         />
         <KpiCard
           title="Crash-free rate"
-          value="99.4%"
-          change="+0.2%"
+          value={`${crashFreeRate}%`}
+          change={`${crashDevices} affected devices`}
           icon={ShieldCheck}
         />
       </div>

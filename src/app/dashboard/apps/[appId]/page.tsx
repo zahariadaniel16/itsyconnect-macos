@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   MOCK_APPS,
   getAppVersions,
@@ -12,11 +11,38 @@ import {
 } from "@/lib/mock-data";
 import {
   AppWindow,
-  Rocket,
-  PaperPlaneTilt,
-  ChatsCircle,
-  ArrowRight,
+  DownloadSimple,
+  CurrencyDollar,
+  Receipt,
+  ShieldCheck,
 } from "@phosphor-icons/react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  DAILY_DOWNLOADS,
+  DAILY_SESSIONS,
+  CRASHES,
+  TERRITORIES,
+  formatDate,
+} from "@/lib/mock-analytics";
+import { DAILY_REVENUE } from "@/lib/mock-sales";
+
+// ---------- Constants ----------
 
 const STATE_VARIANTS: Record<
   string,
@@ -59,6 +85,52 @@ function stateLabel(state: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// ---------- Chart configs ----------
+
+const downloadsConfig = {
+  firstTime: { label: "First-time", color: "var(--color-chart-1)" },
+  redownload: { label: "Redownload", color: "var(--color-chart-2)" },
+  update: { label: "Update", color: "var(--color-chart-3)" },
+} satisfies ChartConfig;
+
+const revenueConfig = {
+  proceeds: { label: "Proceeds", color: "var(--color-chart-1)" },
+  sales: { label: "Customer price", color: "var(--color-chart-2)" },
+} satisfies ChartConfig;
+
+const territoryConfig = {
+  downloads: { label: "Downloads", color: "var(--color-chart-1)" },
+} satisfies ChartConfig;
+
+// ---------- KPI helper ----------
+
+function KpiCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon size={16} className="text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold tabular-nums">{value}</div>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------- Page ----------
+
 export default function AppOverviewPage() {
   const { appId } = useParams<{ appId: string }>();
   const app = MOCK_APPS.find((a) => a.id === appId);
@@ -72,14 +144,27 @@ export default function AppOverviewPage() {
     );
   }
 
-  const editableVersions = versions.filter(
-    (v) =>
-      v.appVersionState === "PREPARE_FOR_SUBMISSION" ||
-      v.appVersionState === "WAITING_FOR_REVIEW" ||
-      v.appVersionState === "IN_REVIEW" ||
-      v.appVersionState === "REJECTED" ||
-      v.appVersionState === "METADATA_REJECTED"
+  // Last 30 days of data
+  const downloads = DAILY_DOWNLOADS.slice(-30);
+  const revenue = DAILY_REVENUE.slice(-30);
+
+  const totalDownloads = downloads.reduce(
+    (s, d) => s + d.firstTime + d.redownload + d.update,
+    0,
   );
+  const totalFirstTime = downloads.reduce((s, d) => s + d.firstTime, 0);
+  const totalProceeds = revenue.reduce((s, d) => s + d.proceeds, 0);
+  const totalUnits = revenue.reduce((s, d) => s + d.units, 0);
+
+  const totalDevices = DAILY_SESSIONS.slice(-30).reduce(
+    (s, d) => s + d.uniqueDevices,
+    0,
+  );
+  const crashDevices = CRASHES.reduce((s, c) => s + c.uniqueDevices, 0);
+  const crashFreeRate =
+    totalDevices > 0
+      ? ((1 - crashDevices / totalDevices) * 100).toFixed(1)
+      : "100";
 
   return (
     <div className="space-y-6">
@@ -142,71 +227,200 @@ export default function AppOverviewPage() {
         })}
       </div>
 
-      {/* Quick actions */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {editableVersions.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Rocket size={16} className="text-muted-foreground" />
-                Ready to ship
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {editableVersions.length} version{editableVersions.length !== 1 ? "s" : ""}{" "}
-                in progress. Edit metadata and submit for review.
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/dashboard/apps/${appId}/store-listing`}>
-                  Edit store listing
-                  <ArrowRight size={14} className="ml-1.5" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+      {/* KPI cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Downloads"
+          value={totalDownloads.toLocaleString()}
+          subtitle={`${totalFirstTime.toLocaleString()} first-time`}
+          icon={DownloadSimple}
+        />
+        <KpiCard
+          title="Proceeds"
+          value={`$${totalProceeds.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle="Last 30 days"
+          icon={CurrencyDollar}
+        />
+        <KpiCard
+          title="Units sold"
+          value={totalUnits.toLocaleString()}
+          subtitle="Lifetime Pro IAP"
+          icon={Receipt}
+        />
+        <KpiCard
+          title="Crash-free rate"
+          value={`${crashFreeRate}%`}
+          subtitle={`${crashDevices} affected devices`}
+          icon={ShieldCheck}
+        />
+      </div>
 
+      {/* Charts row */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Downloads over time */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <PaperPlaneTilt size={16} className="text-muted-foreground" />
-              TestFlight
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Downloads over time
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Manage beta builds, groups, and testers.
-            </p>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/dashboard/apps/${appId}/testflight`}>
-                Manage TestFlight
-                <ArrowRight size={14} className="ml-1.5" />
-              </Link>
-            </Button>
+          <CardContent>
+            <ChartContainer
+              config={downloadsConfig}
+              className="h-[240px] w-full"
+            >
+              <AreaChart data={downloads} accessibilityLayer>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={formatDate}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tickLine={false} axisLine={false} width={40} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(v) => formatDate(v as string)}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Area
+                  type="monotone"
+                  dataKey="update"
+                  stackId="1"
+                  fill="var(--color-update)"
+                  stroke="var(--color-update)"
+                  fillOpacity={0.4}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="redownload"
+                  stackId="1"
+                  fill="var(--color-redownload)"
+                  stroke="var(--color-redownload)"
+                  fillOpacity={0.4}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="firstTime"
+                  stackId="1"
+                  fill="var(--color-firstTime)"
+                  stroke="var(--color-firstTime)"
+                  fillOpacity={0.4}
+                />
+              </AreaChart>
+            </ChartContainer>
           </CardContent>
         </Card>
 
+        {/* Revenue over time */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <ChatsCircle size={16} className="text-muted-foreground" />
-              Reviews
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Revenue over time
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              3 new reviews to respond to.
-            </p>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/dashboard/apps/${appId}/reviews`}>
-                View reviews
-                <ArrowRight size={14} className="ml-1.5" />
-              </Link>
-            </Button>
+          <CardContent>
+            <ChartContainer
+              config={revenueConfig}
+              className="h-[240px] w-full"
+            >
+              <AreaChart data={revenue} accessibilityLayer>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={formatDate}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={50}
+                  tickFormatter={(v) => `$${v}`}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(v) => formatDate(v as string)}
+                      formatter={(value, name) => (
+                        <div className="flex flex-1 items-center justify-between gap-2 leading-none">
+                          <span className="text-muted-foreground">
+                            {name === "proceeds" ? "Proceeds" : "Customer price"}
+                          </span>
+                          <span className="font-mono font-medium tabular-nums">
+                            ${(value as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  fill="var(--color-sales)"
+                  stroke="var(--color-sales)"
+                  fillOpacity={0.15}
+                  strokeDasharray="4 4"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="proceeds"
+                  fill="var(--color-proceeds)"
+                  stroke="var(--color-proceeds)"
+                  fillOpacity={0.3}
+                />
+              </AreaChart>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
+
+      {/* Top territories */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">
+            Top territories by downloads
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer
+            config={territoryConfig}
+            className="h-[320px] w-full"
+          >
+            <BarChart
+              data={TERRITORIES}
+              layout="vertical"
+              accessibilityLayer
+            >
+              <CartesianGrid horizontal={false} />
+              <YAxis
+                dataKey="territory"
+                type="category"
+                tickLine={false}
+                axisLine={false}
+                width={100}
+                className="text-xs"
+              />
+              <XAxis type="number" tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar
+                dataKey="downloads"
+                fill="var(--color-downloads)"
+                radius={[0, 4, 4, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }
