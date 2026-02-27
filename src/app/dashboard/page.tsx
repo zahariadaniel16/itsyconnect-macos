@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApps } from "@/lib/apps-context";
-import { SpinnerGap, AppWindow } from "@phosphor-icons/react";
+import { AppWindow } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }

@@ -70,6 +70,12 @@ export async function createVersion(
   return res.data.id;
 }
 
+export async function deleteVersion(versionId: string): Promise<void> {
+  await ascFetch(`/v1/appStoreVersions/${versionId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function cancelSubmission(versionId: string): Promise<void> {
   const res = await ascFetch<{
     data: { id: string };

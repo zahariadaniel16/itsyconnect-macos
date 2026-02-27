@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { CaretUpDown, Plus, SpinnerGap } from "@phosphor-icons/react";
+import { CaretUpDown, Plus } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { useApps } from "@/lib/apps-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { AppIcon } from "@/components/app-icon";
@@ -40,7 +41,7 @@ export function AppSwitcher() {
             >
               {loading ? (
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
-                  <SpinnerGap size={16} className="animate-spin text-muted-foreground" />
+                  <Spinner className="text-muted-foreground" />
                 </div>
               ) : (
                 <AppIcon

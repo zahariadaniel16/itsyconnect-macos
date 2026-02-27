@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { CheckCircle, Circle, SpinnerGap } from "@phosphor-icons/react";
+import { CheckCircle, Circle } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useVersions } from "@/lib/versions-context";
@@ -117,7 +118,7 @@ export function VersionActionFooter() {
             }
           }}
         >
-          {loading && <SpinnerGap size={16} className="animate-spin" />}
+          {loading && <Spinner />}
           Cancel submission
         </Button>
       </Footer>
@@ -150,7 +151,7 @@ export function VersionActionFooter() {
             }
           }}
         >
-          {loading && <SpinnerGap size={16} className="animate-spin" />}
+          {loading && <Spinner />}
           Release now
         </Button>
       </Footer>

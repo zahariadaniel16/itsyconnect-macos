@@ -8,8 +8,8 @@ import {
   Trash,
   CheckCircle,
   XCircle,
-  SpinnerGap,
 } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 interface Credential {
@@ -74,7 +74,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <SpinnerGap size={16} className="animate-spin" />
+        <Spinner />
         Loading...
       </div>
     );
@@ -269,7 +269,7 @@ function CredentialForm({
           <>
             {testStatus === "testing" && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <SpinnerGap size={14} className="animate-spin" />
+                <Spinner className="size-3.5" />
                 Testing connection...
               </p>
             )}
@@ -333,7 +333,7 @@ function CredentialForm({
         <Button type="submit" disabled={saving || !canSave}>
           {saving ? (
             <>
-              <SpinnerGap size={16} className="animate-spin" />
+              <Spinner />
               Saving...
             </>
           ) : (

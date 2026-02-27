@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SpinnerGap, Copy, Check } from "@phosphor-icons/react";
+import { Copy, Check } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
@@ -399,7 +400,7 @@ export default function AppDetailsPage() {
   if (infoLoading || locLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }

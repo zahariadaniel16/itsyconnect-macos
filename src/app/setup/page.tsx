@@ -20,10 +20,10 @@ import {
   Lock,
   MagicWand,
   Package,
-  SpinnerGap,
   XCircle,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { Spinner } from "@/components/ui/spinner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -355,7 +355,7 @@ export default function SetupPage() {
                 <>
                   {testStatus === "testing" && (
                     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <SpinnerGap size={14} className="animate-spin" />
+                      <Spinner className="size-3.5" />
                       Testing connection...
                     </p>
                   )}
@@ -501,7 +501,7 @@ export default function SetupPage() {
           >
             {submitting ? (
               <>
-                <SpinnerGap size={16} className="animate-spin" />
+                <Spinner />
                 Setting up...
               </>
             ) : step === TOTAL_STEPS ? (

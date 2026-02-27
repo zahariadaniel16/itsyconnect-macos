@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, EyeSlash, SpinnerGap } from "@phosphor-icons/react";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 
@@ -84,7 +85,7 @@ export default function AISettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <SpinnerGap size={16} className="animate-spin" />
+        <Spinner />
         Loading...
       </div>
     );
@@ -160,7 +161,7 @@ export default function AISettingsPage() {
       <Button onClick={handleSave} disabled={saving}>
         {saving ? (
           <>
-            <SpinnerGap size={16} className="animate-spin" />
+            <Spinner />
             Saving...
           </>
         ) : (

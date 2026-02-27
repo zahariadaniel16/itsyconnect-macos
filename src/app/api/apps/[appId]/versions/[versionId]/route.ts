@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateVersionAttributes, invalidateVersionsCache } from "@/lib/asc/version-mutations";
+import { updateVersionAttributes, deleteVersion, invalidateVersionsCache } from "@/lib/asc/version-mutations";
 import { hasCredentials } from "@/lib/asc/client";
 
 export async function PATCH(
@@ -29,5 +29,34 @@ export async function PATCH(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ appId: string; versionId: string }> },
+) {
+  const { appId, versionId } = await params;
+
+  if (!hasCredentials()) {
+    return NextResponse.json({ error: "No credentials" }, { status: 401 });
+  }
+
+  try {
+    await deleteVersion(versionId);
+    invalidateVersionsCache(appId);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : "Unknown error";
+    // Extract first detail from ASC JSON error envelope
+    let message = raw;
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart !== -1) {
+      try {
+        const parsed = JSON.parse(raw.slice(jsonStart));
+        message = parsed.errors?.[0]?.detail ?? raw;
+      } catch { /* keep raw */ }
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

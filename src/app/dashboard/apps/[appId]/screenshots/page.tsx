@@ -3,14 +3,21 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import {
+  CaretLeft,
+  CaretRight,
   CloudArrowUp,
   Plus,
-  SpinnerGap,
   X,
-  DotsSixVertical,
 } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -58,10 +65,12 @@ function SortableScreenshot({
   screenshot,
   readOnly,
   onDelete,
+  onPreview,
 }: {
   screenshot: AscScreenshot;
   readOnly: boolean;
   onDelete: (id: string) => void;
+  onPreview: () => void;
 }) {
   const {
     attributes,
@@ -88,36 +97,32 @@ function SortableScreenshot({
       style={style}
       className="group relative shrink-0"
     >
-      {/* Drag handle + thumbnail */}
       <div
         className="flex flex-col items-center gap-1.5 rounded-lg border bg-muted/30 p-2"
         {...attributes}
         {...listeners}
       >
-        {!readOnly && (
-          <DotsSixVertical
-            size={14}
-            className="cursor-grab text-muted-foreground/40 group-hover:text-muted-foreground"
-          />
-        )}
         {isComplete && hasToken ? (
-          <img
-            src={screenshotImageUrl(screenshot.attributes.assetToken!, 300)}
-            alt={screenshot.attributes.fileName}
-            className="h-[200px] w-auto rounded object-contain"
-            loading="lazy"
-          />
+          <button
+            type="button"
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview();
+            }}
+          >
+            <img
+              src={screenshotImageUrl(screenshot.attributes.assetToken!, 300)}
+              alt={screenshot.attributes.fileName}
+              className="h-[200px] w-auto rounded object-contain"
+              loading="lazy"
+            />
+          </button>
         ) : (
           <div className="flex h-[200px] w-[112px] items-center justify-center rounded bg-muted">
-            <SpinnerGap
-              size={24}
-              className="animate-spin text-muted-foreground/40"
-            />
+            <Spinner className="size-6 text-muted-foreground/40" />
           </div>
         )}
-        <p className="max-w-[120px] truncate text-xs text-muted-foreground">
-          {screenshot.attributes.fileName}
-        </p>
       </div>
 
       {/* Delete button */}
@@ -125,7 +130,7 @@ function SortableScreenshot({
         <button
           type="button"
           onClick={() => onDelete(screenshot.id)}
-          className="absolute -top-2 -right-2 hidden rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm hover:bg-destructive/90 group-hover:block"
+          className="absolute top-1 right-1 hidden rounded-full bg-destructive p-1 text-white shadow-sm hover:bg-destructive/90 group-hover:block"
         >
           <X size={12} />
         </button>
@@ -141,7 +146,7 @@ function SortableScreenshot({
 function UploadingPlaceholder() {
   return (
     <div className="flex h-[232px] w-[120px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20">
-      <SpinnerGap size={20} className="animate-spin text-muted-foreground" />
+      <Spinner className="size-5 text-muted-foreground" />
       <span className="text-xs text-muted-foreground">Uploading…</span>
     </div>
   );
@@ -171,8 +176,36 @@ function ScreenshotSetCard({
   onDragEnd: (setId: string, event: DragEndEvent) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const displayType = set.attributes.screenshotDisplayType;
   const size = DISPLAY_TYPE_SIZES[displayType];
+
+  const previewableScreenshots = set.screenshots.filter(
+    (s) =>
+      s.attributes.assetDeliveryState?.state === "COMPLETE" &&
+      !!s.attributes.assetToken,
+  );
+
+  const previewScreenshot =
+    previewIndex !== null ? previewableScreenshots[previewIndex] : null;
+
+  useEffect(() => {
+    if (previewIndex === null) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setPreviewIndex(null);
+      } else if (e.key === "ArrowLeft" && previewIndex! > 0) {
+        setPreviewIndex((i) => i! - 1);
+      } else if (
+        e.key === "ArrowRight" &&
+        previewIndex! < previewableScreenshots.length - 1
+      ) {
+        setPreviewIndex((i) => i! + 1);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewIndex, previewableScreenshots.length]);
 
   return (
     <Card>
@@ -235,6 +268,12 @@ function ScreenshotSetCard({
                     screenshot={ss}
                     readOnly={readOnly}
                     onDelete={onDelete}
+                    onPreview={() => {
+                      const idx = previewableScreenshots.findIndex(
+                        (s) => s.id === ss.id,
+                      );
+                      if (idx !== -1) setPreviewIndex(idx);
+                    }}
                   />
                 ))}
 
@@ -271,6 +310,57 @@ function ScreenshotSetCard({
           />
         )}
       </CardContent>
+
+      {/* Screenshot preview lightbox */}
+      <Dialog
+        open={previewIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewIndex(null);
+        }}
+      >
+        <DialogPortal>
+          <DialogOverlay
+            className="bg-black/80"
+            onClick={() => setPreviewIndex(null)}
+          />
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+            <DialogTitle className="sr-only">Screenshot preview</DialogTitle>
+            {previewScreenshot && (
+              <div className="pointer-events-auto flex items-center gap-3">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25",
+                    previewIndex === 0 && "invisible",
+                  )}
+                  onClick={() => setPreviewIndex(previewIndex! - 1)}
+                >
+                  <CaretLeft size={24} />
+                </button>
+                <img
+                  src={screenshotImageUrl(
+                    previewScreenshot.attributes.assetToken!,
+                    1200,
+                  )}
+                  alt={previewScreenshot.attributes.fileName}
+                  className="max-h-[85vh] max-w-[85vw] object-contain"
+                />
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25",
+                    previewIndex === previewableScreenshots.length - 1 &&
+                      "invisible",
+                  )}
+                  onClick={() => setPreviewIndex(previewIndex! + 1)}
+                >
+                  <CaretRight size={24} />
+                </button>
+              </div>
+            )}
+          </div>
+        </DialogPortal>
+      </Dialog>
     </Card>
   );
 }
@@ -756,7 +846,7 @@ export default function ScreenshotsPage() {
   if (versionsLoading || locLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }
@@ -772,7 +862,7 @@ export default function ScreenshotsPage() {
   if (ssLoading || creatingVariant) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }

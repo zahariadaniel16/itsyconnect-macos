@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { SpinnerGap } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
@@ -41,10 +41,10 @@ export default function AppReviewPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  // Reset form when version changes (during render, not in effect)
-  const [prevVersionId, setPrevVersionId] = useState(versionId);
-  if (versionId !== prevVersionId) {
-    setPrevVersionId(versionId);
+  // Populate form when version data loads or version changes (during render)
+  const [prevReviewDetail, setPrevReviewDetail] = useState(reviewDetail);
+  if (reviewDetail !== prevReviewDetail) {
+    setPrevReviewDetail(reviewDetail);
     setNotes(reviewDetail?.notes ?? "");
     setSignInRequired(reviewDetail?.demoAccountRequired ?? false);
     setDemoName(reviewDetail?.demoAccountName ?? "");
@@ -136,7 +136,7 @@ export default function AppReviewPage() {
   if (versionsLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }

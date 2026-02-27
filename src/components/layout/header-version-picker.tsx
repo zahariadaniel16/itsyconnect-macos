@@ -7,7 +7,8 @@ import {
   useSearchParams,
   useRouter,
 } from "next/navigation";
-import { ArrowsClockwise, CaretDown, Check, Plus, SpinnerGap } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, Check, Plus } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -307,7 +308,7 @@ export function HeaderVersionPicker() {
             onClick={handleCreate}
             disabled={!versionValid || !platform || creating}
           >
-            {creating && <SpinnerGap size={14} className="animate-spin" />}
+            {creating && <Spinner className="size-3.5" />}
             {creating ? "Creating\u2026" : "Create"}
           </Button>
         </DialogContent>
@@ -418,7 +419,7 @@ export function HeaderVersionActions() {
           disabled={!isDirty || isSaving}
           onClick={onSave}
         >
-          {isSaving && <SpinnerGap size={14} className="animate-spin" />}
+          {isSaving && <Spinner className="size-3.5" />}
           {isSaving ? "Saving\u2026" : "Save"}
           {!isSaving && (
             <kbd className="ml-1 text-[10px] opacity-50 font-sans">&#8984;&#9166;</kbd>
@@ -475,7 +476,7 @@ export function HeaderVersionActions() {
               onClick={handleCreate}
               disabled={!versionValid || !platform || creating}
             >
-              {creating && <SpinnerGap size={14} className="animate-spin" />}
+              {creating && <Spinner className="size-3.5" />}
               {creating ? "Creating\u2026" : "Create"}
             </Button>
           </DialogContent>

@@ -18,8 +18,8 @@ import {
   CurrencyDollar,
   Receipt,
   ShieldCheck,
-  SpinnerGap,
 } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Area,
   AreaChart,
@@ -122,7 +122,7 @@ export default function AppOverviewPage() {
   if (appsLoading || versionsLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }

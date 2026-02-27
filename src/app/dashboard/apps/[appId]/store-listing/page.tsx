@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { AppWindow, CalendarBlank, Check, Lock, PencilSimple, SpinnerGap, X } from "@phosphor-icons/react";
+import { AppWindow, CalendarBlank, Check, Lock, PencilSimple, X } from "@phosphor-icons/react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
@@ -415,7 +416,7 @@ export default function StoreListingPage() {
   if (versionsLoading || locLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+        <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }
@@ -784,7 +785,7 @@ function VersionStringSection({
               onClick={save}
               disabled={saving || !draftValid}
             >
-              {saving ? <SpinnerGap size={14} className="animate-spin" /> : <Check size={14} />}
+              {saving ? <Spinner className="size-3.5" /> : <Check size={14} />}
             </Button>
             <Button
               variant="ghost"
