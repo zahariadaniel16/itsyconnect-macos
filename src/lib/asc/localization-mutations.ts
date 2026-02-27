@@ -1,6 +1,22 @@
 import { ascFetch } from "./client";
 import { cacheInvalidate } from "@/lib/cache";
 
+/** ASC rejects empty strings for URI-typed fields – send null to clear them. */
+const URL_FIELDS = new Set([
+  "supportUrl",
+  "marketingUrl",
+  "privacyPolicyUrl",
+  "privacyChoicesUrl",
+]);
+
+function cleanAttributes(attrs: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(attrs)) {
+    cleaned[k] = URL_FIELDS.has(k) && v === "" ? null : v;
+  }
+  return cleaned;
+}
+
 // --- Version localizations ---
 
 export async function updateVersionLocalization(
@@ -13,7 +29,7 @@ export async function updateVersionLocalization(
       data: {
         type: "appStoreVersionLocalizations",
         id: localizationId,
-        attributes,
+        attributes: cleanAttributes(attributes),
       },
     }),
   });
@@ -24,12 +40,17 @@ export async function createVersionLocalization(
   locale: string,
   attributes: Record<string, unknown>,
 ): Promise<void> {
+  // Strip empty strings – ASC rejects them on create
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(attributes)) {
+    if (v !== "") cleaned[k] = v;
+  }
   await ascFetch("/v1/appStoreVersionLocalizations", {
     method: "POST",
     body: JSON.stringify({
       data: {
         type: "appStoreVersionLocalizations",
-        attributes: { locale, ...attributes },
+        attributes: { locale, ...cleaned },
         relationships: {
           appStoreVersion: {
             data: { type: "appStoreVersions", id: versionId },
@@ -64,7 +85,7 @@ export async function updateAppInfoLocalization(
       data: {
         type: "appInfoLocalizations",
         id: localizationId,
-        attributes,
+        attributes: cleanAttributes(attributes),
       },
     }),
   });
@@ -75,12 +96,17 @@ export async function createAppInfoLocalization(
   locale: string,
   attributes: Record<string, unknown>,
 ): Promise<void> {
+  // Strip empty strings – ASC rejects them on create
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(attributes)) {
+    if (v !== "") cleaned[k] = v;
+  }
   await ascFetch("/v1/appInfoLocalizations", {
     method: "POST",
     body: JSON.stringify({
       data: {
         type: "appInfoLocalizations",
-        attributes: { locale, ...attributes },
+        attributes: { locale, ...cleaned },
         relationships: {
           appInfo: {
             data: { type: "appInfos", id: appInfoId },

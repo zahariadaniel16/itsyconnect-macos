@@ -81,6 +81,8 @@ export async function ascFetch<T>(
     }
 
     const text = await response.text().catch(() => "");
+    const method = options?.method ?? "GET";
+    console.error(`[ASC] ${method} ${path} → ${response.status}: ${text.slice(0, 500)}`);
     lastError = new Error(
       `ASC API ${response.status}: ${text.slice(0, 200)}`,
     );

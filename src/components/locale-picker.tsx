@@ -17,6 +17,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CaretDown, Check, Plus, X } from "@phosphor-icons/react";
 import { localeName, LOCALE_NAMES } from "@/lib/asc/locale-names";
 import type { SectionName } from "@/lib/section-locales-context";
@@ -55,6 +65,7 @@ export function LocalePicker({
   readOnly,
 }: LocalePickerProps) {
   const [open, setOpen] = useState(false);
+  const [deleteLocale, setDeleteLocale] = useState<string | null>(null);
 
   const activeSet = useMemo(() => new Set(locales), [locales]);
 
@@ -88,7 +99,7 @@ export function LocalePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-7 gap-1 px-2 text-xs">
+        <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-sm">
           {localeName(selectedLocale)}
           <span className="text-muted-foreground">{selectedLocale}</span>
           <CaretDown size={12} className="text-muted-foreground" />
@@ -137,7 +148,7 @@ export function LocalePicker({
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            onLocaleDelete(code);
+                            setDeleteLocale(code);
                           }}
                         >
                           <X size={12} />
@@ -220,6 +231,31 @@ export function LocalePicker({
           </CommandList>
         </Command>
       </PopoverContent>
+
+      <AlertDialog open={deleteLocale !== null} onOpenChange={(v) => { if (!v) setDeleteLocale(null); }}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {deleteLocale ? localeName(deleteLocale) : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the {deleteLocale ? localeName(deleteLocale) : ""} localization and all its content when you save.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteLocale && onLocaleDelete) {
+                  onLocaleDelete(deleteLocale);
+                }
+                setDeleteLocale(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Popover>
   );
 }

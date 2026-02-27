@@ -16,6 +16,8 @@ interface SectionLocalesContextValue {
   subscribe: (cb: () => void) => () => void;
   getSnapshot: () => Store;
   report: (section: SectionName, locales: string[]) => void;
+  /** Like report, but only sets data if the section is still empty. */
+  seed: (section: SectionName, locales: string[]) => void;
 }
 
 const SectionLocalesContext = createContext<SectionLocalesContextValue | null>(
@@ -53,8 +55,14 @@ export function SectionLocalesProvider({
     listenersRef.current.forEach((cb) => cb());
   }, []);
 
+  const seed = useCallback((section: SectionName, locales: string[]) => {
+    if (storeRef.current[section].length > 0) return;
+    storeRef.current = { ...storeRef.current, [section]: locales };
+    listenersRef.current.forEach((cb) => cb());
+  }, []);
+
   return (
-    <SectionLocalesContext.Provider value={{ subscribe, getSnapshot, report }}>
+    <SectionLocalesContext.Provider value={{ subscribe, getSnapshot, report, seed }}>
       {children}
     </SectionLocalesContext.Provider>
   );
@@ -83,4 +91,15 @@ export function useSectionLocales(section: SectionName) {
   }
 
   return { reportLocales, otherSectionLocales };
+}
+
+/** Seed locales for sections that haven't self-reported yet. */
+export function useSeedSectionLocales() {
+  const ctx = useContext(SectionLocalesContext);
+  if (!ctx) {
+    throw new Error(
+      "useSeedSectionLocales must be used within SectionLocalesProvider",
+    );
+  }
+  return ctx.seed;
 }

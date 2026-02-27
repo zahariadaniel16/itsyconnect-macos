@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 interface FormDirtyContextValue {
   isDirty: boolean;
@@ -28,6 +29,9 @@ interface FormDirtyContextValue {
   registerSave: (handler: () => void | Promise<void>) => void;
   /** Guard a navigation action – shows a confirmation dialog if dirty. */
   guardNavigation: (onProceed: () => void) => void;
+  /** Pages call this with current validation errors (empty array = valid). */
+  setValidationErrors: (errors: string[]) => void;
+  hasValidationErrors: boolean;
 }
 
 const FormDirtyContext = createContext<FormDirtyContextValue>({
@@ -37,6 +41,8 @@ const FormDirtyContext = createContext<FormDirtyContextValue>({
   onSave: () => {},
   registerSave: () => {},
   guardNavigation: (onProceed) => onProceed(),
+  setValidationErrors: () => {},
+  hasValidationErrors: false,
 });
 
 export function FormDirtyProvider({ children }: { children: React.ReactNode }) {
@@ -45,6 +51,8 @@ export function FormDirtyProvider({ children }: { children: React.ReactNode }) {
   const [guardOpen, setGuardOpen] = useState(false);
   const pendingRef = useRef<(() => void) | null>(null);
   const saveRef = useRef<(() => void | Promise<void>) | null>(null);
+  const validationErrorsRef = useRef<string[]>([]);
+  const [hasValidationErrors, setHasValidationErrors] = useState(false);
 
   const setDirty = useCallback((dirty: boolean) => {
     setIsDirty(dirty);
@@ -54,8 +62,24 @@ export function FormDirtyProvider({ children }: { children: React.ReactNode }) {
     saveRef.current = handler;
   }, []);
 
+  const setValidationErrors = useCallback((errors: string[]) => {
+    validationErrorsRef.current = errors;
+    setHasValidationErrors(errors.length > 0);
+  }, []);
+
   const onSave = useCallback(async () => {
     if (!saveRef.current) return;
+    const errors = validationErrorsRef.current;
+    if (errors.length > 0) {
+      if (errors.length === 1) {
+        toast.error(`Cannot save – ${errors[0]}`);
+      } else {
+        toast.error(
+          `Cannot save – some fields exceed character limits:\n${errors.map((e) => `• ${e}`).join("\n")}`,
+        );
+      }
+      return;
+    }
     setIsSaving(true);
     try {
       await saveRef.current();
@@ -108,11 +132,11 @@ export function FormDirtyProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FormDirtyContext.Provider
-      value={{ isDirty, isSaving, setDirty, onSave, registerSave, guardNavigation }}
+      value={{ isDirty, isSaving, setDirty, onSave, registerSave, guardNavigation, setValidationErrors, hasValidationErrors }}
     >
       {children}
       <AlertDialog open={guardOpen} onOpenChange={(open) => !open && handleCancel()}>
-        <AlertDialogContent>
+        <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
             <AlertDialogDescription>

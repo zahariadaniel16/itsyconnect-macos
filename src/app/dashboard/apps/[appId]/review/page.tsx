@@ -13,6 +13,8 @@ import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { resolveVersion } from "@/lib/asc/version-types";
+import { FIELD_LIMITS } from "@/lib/asc/locale-names";
+import { CharCount } from "@/components/char-count";
 
 export default function AppReviewPage() {
   const { appId } = useParams<{ appId: string }>();
@@ -28,7 +30,7 @@ export default function AppReviewPage() {
 
   const reviewDetail = selectedVersion?.reviewDetail?.attributes;
 
-  const { setDirty, registerSave } = useFormDirty();
+  const { setDirty, registerSave, setValidationErrors } = useFormDirty();
   const [notes, setNotes] = useState("");
   const [signInRequired, setSignInRequired] = useState(false);
   const [demoName, setDemoName] = useState("");
@@ -61,6 +63,16 @@ export default function AppReviewPage() {
     }
     setDirty(false);
   }, [reviewDetail, setDirty]);
+
+  // Validate field limits
+  useEffect(() => {
+    const limit = FIELD_LIMITS.reviewNotes;
+    if (notes.length > limit) {
+      setValidationErrors([`Review notes exceeds ${limit} character limit`]);
+    } else {
+      setValidationErrors([]);
+    }
+  }, [notes, setValidationErrors]);
 
   // Register save handler for the header Save button
   useEffect(() => {
@@ -151,10 +163,8 @@ export default function AppReviewPage() {
               onChange={(e) => { setNotes(e.target.value); setDirty(true); }}
             />
           </CardContent>
-          <div className="flex items-center justify-end border-t px-3 py-1.5">
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {notes.length}/4000
-            </span>
+          <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
+            <CharCount value={notes} limit={FIELD_LIMITS.reviewNotes} />
           </div>
         </Card>
       </section>

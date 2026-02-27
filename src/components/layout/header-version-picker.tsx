@@ -98,7 +98,7 @@ export function HeaderVersionPicker() {
         <>
           <Separator orientation="vertical" className="mx-2 !h-4" />
           <Select value={currentPlatform} onValueChange={handlePlatformChange}>
-            <SelectTrigger className="!h-7 gap-1 bg-background px-2 text-xs">
+            <SelectTrigger className="!h-8 gap-1 bg-background px-2 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -114,7 +114,7 @@ export function HeaderVersionPicker() {
             value={selectedVersion?.id ?? ""}
             onValueChange={navigate}
           >
-            <SelectTrigger className="!h-7 gap-1 bg-background px-2 font-mono text-xs">
+            <SelectTrigger className="!h-8 gap-1 bg-background px-2 font-mono text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -168,23 +168,23 @@ export function HeaderVersionActions() {
         <Button
           variant="outline"
           size="sm"
-          className="h-7 gap-1 text-xs"
+          className="h-8 gap-1 text-sm"
           onClick={() =>
             guardNavigation(() => toast.info("New version creation not available in prototype"))
           }
         >
-          <Plus size={12} />
+          <Plus size={14} />
           New version
         </Button>
       )}
       {(showSave || (showVersionActions && !readOnly)) && (
         <Button
           size="sm"
-          className="h-7 gap-1 text-xs"
+          className="h-8 gap-1 text-sm"
           disabled={!isDirty || isSaving}
           onClick={onSave}
         >
-          {isSaving ? <SpinnerGap size={12} className="animate-spin" /> : <FloppyDisk size={12} />}
+          {isSaving ? <SpinnerGap size={14} className="animate-spin" /> : <FloppyDisk size={14} />}
           {isSaving ? "Saving\u2026" : "Save"}
         </Button>
       )}
@@ -221,7 +221,7 @@ export function HeaderRefreshButton() {
     <Button
       variant="ghost"
       size="icon"
-      className="ml-2 size-7"
+      className="ml-2 size-8"
       onClick={() => guardNavigation(doRefresh)}
       disabled={busy}
     >

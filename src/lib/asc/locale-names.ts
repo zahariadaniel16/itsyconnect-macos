@@ -62,4 +62,5 @@ export const FIELD_LIMITS: Record<string, number> = {
   promotionalText: 170,
   supportUrl: 2048,
   marketingUrl: 2048,
+  reviewNotes: 4000,
 };

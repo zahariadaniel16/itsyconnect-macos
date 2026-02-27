@@ -20,7 +20,8 @@ import { useFormDirty } from "@/lib/form-dirty-context";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
-import { localeName, sortLocales } from "@/lib/asc/locale-names";
+import { localeName, sortLocales, FIELD_LIMITS } from "@/lib/asc/locale-names";
+import { CharCount } from "@/components/char-count";
 import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 
@@ -105,11 +106,14 @@ export default function AppDetailsPage() {
     [searchParams, router],
   );
 
-  const { setDirty, registerSave } = useFormDirty();
+  const { setDirty, registerSave, setValidationErrors } = useFormDirty();
   const { reportLocales, otherSectionLocales } = useSectionLocales("details");
 
   // Track original locale → localization ID mapping for diffing saves
   const originalLocaleIdsRef = useRef<Record<string, string>>({});
+
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
 
   useEffect(() => {
     const data = buildLocaleData(localizations);
@@ -120,7 +124,7 @@ export default function AppDetailsPage() {
     // Preserve current locale if still valid, else try URL param, else first
     setSelectedLocale((prev) => {
       if (prev && sorted.includes(prev)) return prev;
-      const fromUrl = searchParams.get("locale");
+      const fromUrl = searchParamsRef.current.get("locale");
       if (fromUrl && sorted.includes(fromUrl)) return fromUrl;
       return sorted[0] ?? "";
     });
@@ -132,7 +136,7 @@ export default function AppDetailsPage() {
       ids[loc.attributes.locale] = loc.id;
     }
     originalLocaleIdsRef.current = ids;
-  }, [localizations, primaryLocale, setDirty, searchParams]);
+  }, [localizations, primaryLocale, setDirty]);
 
   // Sync content rights when app data loads
   useEffect(() => {
@@ -147,6 +151,21 @@ export default function AppDetailsPage() {
   useEffect(() => {
     reportLocales(locales);
   }, [locales, reportLocales]);
+
+  // Validate field limits across all locales
+  useEffect(() => {
+    const errors: string[] = [];
+    for (const [locale, fields] of Object.entries(localeData)) {
+      const name = localeName(locale);
+      if (fields.name.length > FIELD_LIMITS.name) {
+        errors.push(`Name (${fields.name.length}/${FIELD_LIMITS.name}) in ${name}`);
+      }
+      if (fields.subtitle.length > FIELD_LIMITS.subtitle) {
+        errors.push(`Subtitle (${fields.subtitle.length}/${FIELD_LIMITS.subtitle}) in ${name}`);
+      }
+    }
+    setValidationErrors(errors);
+  }, [localeData, setValidationErrors]);
 
   // Register save handler for the header Save button
   useEffect(() => {
@@ -222,7 +241,9 @@ export default function AppDetailsPage() {
 
   function handleAddLocale(locale: string) {
     setLocaleData((prev) => {
-      const next = { ...prev, [locale]: emptyLocaleFields() };
+      // Pre-fill name from primary locale (matches App Store Connect behaviour)
+      const primaryName = prev[primaryLocale]?.name ?? "";
+      const next = { ...prev, [locale]: { ...emptyLocaleFields(), name: primaryName } };
       setLocales(sortLocales(Object.keys(next), primaryLocale));
       return next;
     });
@@ -233,9 +254,10 @@ export default function AppDetailsPage() {
 
   function handleBulkAddLocales(codes: string[]) {
     setLocaleData((prev) => {
+      const primaryName = prev[primaryLocale]?.name ?? "";
       const next = { ...prev };
       for (const code of codes) {
-        if (!next[code]) next[code] = emptyLocaleFields();
+        if (!next[code]) next[code] = { ...emptyLocaleFields(), name: primaryName };
       }
       setLocales(sortLocales(Object.keys(next), primaryLocale));
       return next;
@@ -354,7 +376,10 @@ export default function AppDetailsPage() {
             <h3 className="section-title">Name &amp; subtitle</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Name</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted-foreground">Name</label>
+                  <CharCount value={current.name} limit={FIELD_LIMITS.name} />
+                </div>
                 <Input
                   value={current.name}
                   onChange={(e) => updateField("name", e.target.value)}
@@ -362,9 +387,10 @@ export default function AppDetailsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">
-                  Subtitle
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted-foreground">Subtitle</label>
+                  <CharCount value={current.subtitle} limit={FIELD_LIMITS.subtitle} />
+                </div>
                 <Input
                   value={current.subtitle}
                   onChange={(e) => updateField("subtitle", e.target.value)}

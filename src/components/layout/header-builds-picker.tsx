@@ -64,7 +64,7 @@ export function HeaderBuildsPicker() {
           value={currentPlatform}
           onValueChange={(v) => navigate({ platform: v, version: "all" })}
         >
-          <SelectTrigger className="h-7 w-36 gap-1 text-xs">
+          <SelectTrigger className="h-8 w-36 gap-1 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -79,7 +79,7 @@ export function HeaderBuildsPicker() {
       )}
       {versions.length > 1 && (
         <Select value={effectiveVersion} onValueChange={(v) => navigate({ version: v })}>
-          <SelectTrigger className="h-7 w-32 gap-1 text-xs">
+          <SelectTrigger className="h-8 w-32 gap-1 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

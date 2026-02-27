@@ -24,6 +24,7 @@ import {
   sortLocales,
   FIELD_LIMITS,
 } from "@/lib/asc/locale-names";
+import { CharCount } from "@/components/char-count";
 import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 
@@ -105,7 +106,7 @@ export default function StoreListingPage() {
     [searchParams, router],
   );
 
-  const { setDirty, registerSave } = useFormDirty();
+  const { setDirty, registerSave, setValidationErrors } = useFormDirty();
   const [releaseType, setReleaseType] = useState("manually");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [phasedRelease, setPhasedRelease] = useState(false);
@@ -130,6 +131,9 @@ export default function StoreListingPage() {
 
   const { reportLocales, otherSectionLocales } = useSectionLocales("store-listing");
 
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   // Reset locale data when localizations change
   useEffect(() => {
     const data = buildLocaleData(localizations);
@@ -140,7 +144,7 @@ export default function StoreListingPage() {
     // Preserve current locale if still valid, else try URL param, else first
     setSelectedLocale((prev) => {
       if (prev && sorted.includes(prev)) return prev;
-      const fromUrl = searchParams.get("locale");
+      const fromUrl = searchParamsRef.current.get("locale");
       if (fromUrl && sorted.includes(fromUrl)) return fromUrl;
       return sorted[0] ?? "";
     });
@@ -152,12 +156,39 @@ export default function StoreListingPage() {
       ids[loc.attributes.locale] = loc.id;
     }
     originalLocaleIdsRef.current = ids;
-  }, [localizations, primaryLocale, setDirty, searchParams]);
+  }, [localizations, primaryLocale, setDirty]);
 
   // Report locales to cross-section context
   useEffect(() => {
     reportLocales(locales);
   }, [locales, reportLocales]);
+
+  // Validate field limits across all locales
+  useEffect(() => {
+    const errors: string[] = [];
+    const checked: [keyof LocaleFields, number][] = [
+      ["description", FIELD_LIMITS.description],
+      ["keywords", FIELD_LIMITS.keywords],
+      ["whatsNew", FIELD_LIMITS.whatsNew],
+      ["promotionalText", FIELD_LIMITS.promotionalText],
+    ];
+    const fieldLabels: Record<string, string> = {
+      description: "Description",
+      keywords: "Keywords",
+      whatsNew: "What's new",
+      promotionalText: "Promotional text",
+    };
+    for (const [locale, fields] of Object.entries(localeData)) {
+      const name = localeName(locale);
+      for (const [field, limit] of checked) {
+        const len = fields[field].length;
+        if (len > limit) {
+          errors.push(`${fieldLabels[field]} (${len}/${limit}) in ${name}`);
+        }
+      }
+    }
+    setValidationErrors(errors);
+  }, [localeData, setValidationErrors]);
 
   // Register save handler for the header Save button
   useEffect(() => {
@@ -677,20 +708,5 @@ function BuildSection({ version }: { version?: { build: { id: string; attributes
         </div>
       )}
     </section>
-  );
-}
-
-
-function CharCount({ value, limit }: { value: string; limit?: number }) {
-  const count = value?.length ?? 0;
-  if (!limit) return null;
-  const over = count > limit;
-
-  return (
-    <span
-      className={`text-xs tabular-nums ${over ? "font-medium text-destructive" : "text-muted-foreground"}`}
-    >
-      {count}/{limit}
-    </span>
   );
 }

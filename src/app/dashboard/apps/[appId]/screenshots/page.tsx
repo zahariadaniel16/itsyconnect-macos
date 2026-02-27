@@ -31,6 +31,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
+import { useFormDirty } from "@/lib/form-dirty-context";
 import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import { useScreenshotSets } from "@/lib/hooks/use-screenshot-sets";
@@ -163,11 +164,13 @@ export default function ScreenshotsPage() {
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
-  const { localizations, loading: locLoading } = useLocalizations(
+  const { localizations, loading: locLoading, refresh: refreshLocalizations } = useLocalizations(
     appId,
     versionId,
   );
   const primaryLocale = app?.primaryLocale ?? "";
+  const { setDirty, registerSave } = useFormDirty();
+  const [pendingCreates, setPendingCreates] = useState<Set<string>>(new Set());
 
   const [locales, setLocales] = useState<string[]>([]);
   const [selectedLocale, setSelectedLocale] = useState(
@@ -195,11 +198,16 @@ export default function ScreenshotsPage() {
   // Start with only the primary locale
   useEffect(() => {
     if (!primaryLocale) return;
-    setLocales((prev) => (prev.length > 0 ? prev : [primaryLocale]));
-    setSelectedLocale((prev) => {
-      if (prev) return prev;
-      const fromUrl = searchParams.get("locale");
-      return fromUrl || primaryLocale;
+    setLocales((prev) => {
+      const current = prev.length > 0 ? prev : [primaryLocale];
+      // Validate selected locale against current locales
+      setSelectedLocale((prevSel) => {
+        if (prevSel && current.includes(prevSel)) return prevSel;
+        const fromUrl = searchParams.get("locale");
+        if (fromUrl && current.includes(fromUrl)) return fromUrl;
+        return primaryLocale;
+      });
+      return current;
     });
   }, [primaryLocale, searchParams]);
 
@@ -207,6 +215,61 @@ export default function ScreenshotsPage() {
   useEffect(() => {
     reportLocales(locales);
   }, [locales, reportLocales]);
+
+  // Clear pending creates when localizations refresh (e.g. after save)
+  useEffect(() => {
+    setPendingCreates((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set(prev);
+      for (const locale of prev) {
+        if (versionLocales.includes(locale)) next.delete(locale);
+      }
+      return next;
+    });
+  }, [versionLocales]);
+
+  // Register save handler – creates version localizations for newly added locales
+  useEffect(() => {
+    registerSave(async () => {
+      if (pendingCreates.size === 0) return;
+
+      const localesPayload: Record<string, Record<string, string>> = {};
+      for (const locale of pendingCreates) {
+        localesPayload[locale] = {
+          description: "",
+          keywords: "",
+          whatsNew: "",
+          promotionalText: "",
+          supportUrl: "",
+          marketingUrl: "",
+        };
+      }
+
+      const res = await fetch(
+        `/api/apps/${appId}/versions/${versionId}/localizations`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ locales: localesPayload, originalLocaleIds: {} }),
+        },
+      );
+
+      const data = await res.json();
+      if (!res.ok && !data.errors) {
+        toast.error(data.error ?? "Failed to create localizations");
+        return;
+      }
+      if (data.errors?.length > 0) {
+        toast.warning(`Saved with ${data.errors.length} error(s)`);
+      } else {
+        toast.success("Localizations saved");
+      }
+
+      setPendingCreates(new Set());
+      setDirty(false);
+      await refreshLocalizations();
+    });
+  }, [appId, versionId, pendingCreates, registerSave, setDirty, refreshLocalizations]);
 
   const selectedLocalization = localizations.find(
     (l) => l.attributes.locale === selectedLocale,
@@ -333,6 +396,10 @@ export default function ScreenshotsPage() {
   function handleAddLocale(locale: string) {
     setLocales((prev) => sortLocales([...prev, locale], primaryLocale));
     changeLocale(locale);
+    if (!versionLocales.includes(locale)) {
+      setPendingCreates((prev) => new Set(prev).add(locale));
+      setDirty(true);
+    }
     toast.success(`Added ${localeName(locale)}`);
   }
 
@@ -341,6 +408,15 @@ export default function ScreenshotsPage() {
       const combined = new Set([...prev, ...codes]);
       return sortLocales([...combined], primaryLocale);
     });
+    const newCodes = codes.filter((c) => !versionLocales.includes(c));
+    if (newCodes.length > 0) {
+      setPendingCreates((prev) => {
+        const next = new Set(prev);
+        for (const c of newCodes) next.add(c);
+        return next;
+      });
+      setDirty(true);
+    }
     toast.success(`Added ${codes.length} locales`);
   }
 
