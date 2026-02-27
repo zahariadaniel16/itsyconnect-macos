@@ -27,6 +27,7 @@ import {
 import { CharCount } from "@/components/char-count";
 import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
+import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
 
 
 interface LocaleFields {
@@ -106,6 +107,7 @@ export default function StoreListingPage() {
     [searchParams, router],
   );
 
+  const { report: reportChecklist } = useSubmissionChecklist();
   const { setDirty, registerSave, setValidationErrors } = useFormDirty();
   const [releaseType, setReleaseType] = useState("manually");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
@@ -196,6 +198,17 @@ export default function StoreListingPage() {
     }
     setValidationErrors(errors);
   }, [localeData, setValidationErrors]);
+
+  // Report submission checklist flags from primary locale
+  useEffect(() => {
+    const primary = localeData[primaryLocale];
+    if (!primary) return;
+    reportChecklist({
+      hasDescription: (primary.description?.length ?? 0) > 0,
+      hasWhatsNew: (primary.whatsNew?.length ?? 0) > 0,
+      hasKeywords: (primary.keywords?.length ?? 0) > 0,
+    });
+  }, [localeData, primaryLocale, reportChecklist]);
 
   // Register save handler for the header Save button
   useEffect(() => {

@@ -84,6 +84,7 @@ export const STATE_DOT_COLORS: Record<string, string> = {
   ACCEPTED: "bg-green-500",
   IN_REVIEW: "bg-blue-500",
   WAITING_FOR_REVIEW: "bg-amber-500",
+  PENDING_DEVELOPER_RELEASE: "bg-amber-500",
   PREPARE_FOR_SUBMISSION: "bg-yellow-500",
   REJECTED: "bg-red-500",
   METADATA_REJECTED: "bg-red-500",

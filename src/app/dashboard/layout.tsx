@@ -7,10 +7,12 @@ import { DashboardBreadcrumb } from "@/components/layout/dashboard-breadcrumb";
 import { HeaderVersionPicker, HeaderVersionActions, HeaderRefreshButton } from "@/components/layout/header-version-picker";
 import { HeaderBuildsPicker } from "@/components/layout/header-builds-picker";
 import { HeaderLocalePicker } from "@/components/layout/header-locale-picker";
+import { VersionActionFooter } from "@/components/layout/version-action-footer";
 import { AppsProvider, useApps } from "@/lib/apps-context";
 import { VersionsProvider } from "@/lib/versions-context";
 import { FormDirtyProvider } from "@/lib/form-dirty-context";
 import { HeaderLocaleProvider } from "@/lib/header-locale-context";
+import { SubmissionChecklistProvider } from "@/lib/submission-checklist-context";
 
 declare global {
   interface Window {
@@ -42,6 +44,7 @@ export default function DashboardLayout({
       <VersionsProvider>
       <FormDirtyProvider>
       <HeaderLocaleProvider>
+      <SubmissionChecklistProvider>
       <ReadySignal />
       <SidebarProvider>
         <AppSidebar />
@@ -75,8 +78,12 @@ export default function DashboardLayout({
               <Suspense>{children}</Suspense>
             </div>
           </div>
+          <Suspense>
+            <VersionActionFooter />
+          </Suspense>
         </SidebarInset>
       </SidebarProvider>
+      </SubmissionChecklistProvider>
       </HeaderLocaleProvider>
       </FormDirtyProvider>
       </VersionsProvider>

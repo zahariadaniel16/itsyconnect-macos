@@ -70,6 +70,32 @@ export async function createVersion(
   return res.data.id;
 }
 
+export async function cancelSubmission(versionId: string): Promise<void> {
+  const res = await ascFetch<{
+    data: { id: string };
+  }>(`/v1/appStoreVersions/${versionId}/appStoreVersionSubmission`);
+
+  await ascFetch(`/v1/appStoreVersionSubmissions/${res.data.id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function releaseVersion(versionId: string): Promise<void> {
+  await ascFetch("/v1/appStoreVersionReleaseRequests", {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "appStoreVersionReleaseRequests",
+        relationships: {
+          appStoreVersion: {
+            data: { type: "appStoreVersions", id: versionId },
+          },
+        },
+      },
+    }),
+  });
+}
+
 export function invalidateVersionsCache(appId: string): void {
   cacheInvalidate(`versions:${appId}`);
 }
