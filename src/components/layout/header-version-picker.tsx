@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api-fetch";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
@@ -133,21 +134,16 @@ export function HeaderVersionPicker() {
     if (!versionValid || !platform) return;
     setCreating(true);
     try {
-      const res = await fetch(`/api/apps/${appId}/versions`, {
+      const data = await apiFetch<{ versionId: string }>(`/api/apps/${appId}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ versionString: trimmedVersion, platform }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Failed to create version");
-        return;
-      }
       setDialogOpen(false);
       await refresh();
       router.push(`/dashboard/apps/${appId}/store-listing?version=${data.versionId}`);
-    } catch {
-      toast.error("Failed to create version");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create version");
     } finally {
       setCreating(false);
     }
@@ -379,21 +375,16 @@ export function HeaderVersionActions() {
     if (!versionValid || !platform) return;
     setCreating(true);
     try {
-      const res = await fetch(`/api/apps/${appId}/versions`, {
+      const data = await apiFetch<{ versionId: string }>(`/api/apps/${appId}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ versionString: trimmedVersion, platform }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Failed to create version");
-        return;
-      }
       setDialogOpen(false);
       await refresh();
       router.push(`/dashboard/apps/${appId}/store-listing?version=${data.versionId}`);
-    } catch {
-      toast.error("Failed to create version");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create version");
     } finally {
       setCreating(false);
     }

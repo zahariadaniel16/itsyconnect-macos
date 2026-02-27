@@ -162,8 +162,8 @@ describe("STATE_DOT_COLORS", () => {
     expect(STATE_DOT_COLORS.REJECTED).toBe("bg-red-500");
   });
 
-  it("has 9 entries", () => {
-    expect(Object.keys(STATE_DOT_COLORS)).toHaveLength(9);
+  it("has 10 entries", () => {
+    expect(Object.keys(STATE_DOT_COLORS)).toHaveLength(10);
   });
 });
 

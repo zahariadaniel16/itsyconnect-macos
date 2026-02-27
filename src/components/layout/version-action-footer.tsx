@@ -6,6 +6,7 @@ import { CheckCircle, Circle } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api-fetch";
 import { useVersions } from "@/lib/versions-context";
 import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
 import { resolveVersion, type AscVersion } from "@/lib/asc/version-types";
@@ -100,19 +101,14 @@ export function VersionActionFooter() {
           onClick={async () => {
             setLoading(true);
             try {
-              const res = await fetch(
+              await apiFetch(
                 `/api/apps/${appId}/versions/${version.id}/cancel-submission`,
                 { method: "POST" },
               );
-              const data = await res.json();
-              if (!res.ok) {
-                toast.error(data.error ?? "Failed to cancel submission");
-                return;
-              }
               toast.success("Submission cancelled");
               await refresh();
-            } catch {
-              toast.error("Failed to cancel submission");
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Failed to cancel submission");
             } finally {
               setLoading(false);
             }
@@ -133,19 +129,14 @@ export function VersionActionFooter() {
           onClick={async () => {
             setLoading(true);
             try {
-              const res = await fetch(
+              await apiFetch(
                 `/api/apps/${appId}/versions/${version.id}/release-now`,
                 { method: "POST" },
               );
-              const data = await res.json();
-              if (!res.ok) {
-                toast.error(data.error ?? "Failed to release version");
-                return;
-              }
               toast.success("Version released");
               await refresh();
-            } catch {
-              toast.error("Failed to release version");
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Failed to release version");
             } finally {
               setLoading(false);
             }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +24,9 @@ import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
 import { localeName, sortLocales, FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { CATEGORIES, categoryName } from "@/lib/asc/categories";
 import { CharCount } from "@/components/char-count";
-import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
+import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
+import { apiFetch } from "@/lib/api-fetch";
 
 const SORTED_CATEGORIES = Object.keys(CATEGORIES).sort((a, b) =>
   CATEGORIES[a].localeCompare(CATEGORIES[b]),
@@ -74,7 +75,6 @@ function buildLocaleData(
 export default function AppDetailsPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { apps, updateApp } = useApps();
   const app = apps.find((a) => a.id === appId);
   const { appInfos, loading: infoLoading } = useAppInfo(appId);
@@ -89,10 +89,14 @@ export default function AppDetailsPage() {
   const [localeData, setLocaleData] = useState<
     Record<string, AppInfoLocaleFields>
   >({});
-  const [locales, setLocales] = useState<string[]>([]);
-  const [selectedLocale, setSelectedLocale] = useState(
-    () => searchParams.get("locale") ?? "",
-  );
+
+  const {
+    locales, setLocales,
+    selectedLocale, setSelectedLocale,
+    changeLocale,
+    otherSectionLocales,
+  } = useLocaleManagement({ section: "details", primaryLocale });
+
   const [contentRights, setContentRights] = useState<ContentRights>(
     (app?.contentRightsDeclaration as ContentRights) ?? "DOES_NOT_USE_THIRD_PARTY_CONTENT",
   );
@@ -112,18 +116,7 @@ export default function AppDetailsPage() {
 
   const current = localeData[selectedLocale] ?? emptyLocaleFields();
 
-  const changeLocale = useCallback(
-    (code: string) => {
-      setSelectedLocale(code);
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("locale", code);
-      router.replace(`?${next.toString()}`, { scroll: false });
-    },
-    [searchParams, router],
-  );
-
   const { setDirty, registerSave, setValidationErrors } = useFormDirty();
-  const { reportLocales, otherSectionLocales } = useSectionLocales("details");
 
   // Track original locale → localization ID mapping for diffing saves
   const originalLocaleIdsRef = useRef<Record<string, string>>({});
@@ -185,11 +178,6 @@ export default function AppDetailsPage() {
     }
   }, [appInfo]);
 
-  // Report locales to cross-section context
-  useEffect(() => {
-    reportLocales(locales);
-  }, [locales, reportLocales]);
-
   // Validate field limits across all locales
   useEffect(() => {
     const errors: string[] = [];
@@ -243,15 +231,11 @@ export default function AppDetailsPage() {
       }
       if (Object.keys(appAttrs).length > 0) {
         promises.push(
-          fetch(`/api/apps/${appId}/attributes`, {
+          apiFetch(`/api/apps/${appId}/attributes`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(appAttrs),
-          }).then(async (res) => {
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              throw new Error(data.error ?? "Failed to save app attributes");
-            }
+          }).then(() => {
             contentRightsOriginalRef.current = contentRights;
             notifUrlOriginalRef.current = notifUrl;
             notifSandboxUrlOriginalRef.current = notifSandboxUrl;
@@ -265,18 +249,14 @@ export default function AppDetailsPage() {
         secondaryCategoryId !== secondaryCategoryOriginalRef.current
       ) {
         promises.push(
-          fetch(`/api/apps/${appId}/info/${appInfoId}/categories`, {
+          apiFetch(`/api/apps/${appId}/info/${appInfoId}/categories`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               primaryCategoryId: primaryCategoryId || null,
               secondaryCategoryId: secondaryCategoryId || null,
             }),
-          }).then(async (res) => {
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              throw new Error(data.error ?? "Failed to save categories");
-            }
+          }).then(() => {
             primaryCategoryOriginalRef.current = primaryCategoryId;
             secondaryCategoryOriginalRef.current = secondaryCategoryId;
           }),

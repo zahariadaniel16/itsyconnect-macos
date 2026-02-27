@@ -19,6 +19,7 @@ import {
   deleteScreenshot,
   reorderScreenshots,
   createScreenshotSet,
+  deleteScreenshotSet,
   invalidateScreenshotCache,
 } from "@/lib/asc/screenshot-mutations";
 
@@ -169,6 +170,19 @@ describe("screenshot-mutations", () => {
       expect(
         body.data.relationships.appStoreVersionLocalization.data.id,
       ).toBe("loc-1");
+    });
+  });
+
+  describe("deleteScreenshotSet", () => {
+    it("DELETEs the screenshot set", async () => {
+      mockAscFetch.mockResolvedValue(null);
+
+      await deleteScreenshotSet("set-1");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/appScreenshotSets/set-1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
     });
   });
 

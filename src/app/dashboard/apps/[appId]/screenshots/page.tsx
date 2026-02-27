@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   CaretLeft,
   CaretRight,
@@ -33,7 +33,6 @@ import {
   SortableContext,
   horizontalListSortingStrategy,
   useSortable,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useApps } from "@/lib/apps-context";
@@ -54,8 +53,9 @@ import {
   type AscScreenshot,
   type AscScreenshotSet,
 } from "@/lib/asc/display-types";
-import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
+import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
+import { useScreenshotOperations } from "@/lib/hooks/use-screenshot-operations";
 
 // ---------------------------------------------------------------------------
 // Sortable screenshot thumbnail
@@ -471,7 +471,6 @@ function AddVariantButton({
 export default function ScreenshotsPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
   const { versions, loading: versionsLoading } = useVersions();
@@ -493,22 +492,12 @@ export default function ScreenshotsPage() {
   );
   const primaryLocale = app?.primaryLocale ?? "";
 
-  const [locales, setLocales] = useState<string[]>([]);
-  const [selectedLocale, setSelectedLocale] = useState(
-    () => searchParams.get("locale") ?? "",
-  );
-
-  const changeLocale = useCallback(
-    (code: string) => {
-      setSelectedLocale(code);
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("locale", code);
-      router.replace(`?${next.toString()}`, { scroll: false });
-    },
-    [searchParams, router],
-  );
-
-  const { reportLocales, otherSectionLocales } = useSectionLocales("screenshots");
+  const {
+    locales, setLocales,
+    selectedLocale, setSelectedLocale,
+    changeLocale,
+    otherSectionLocales,
+  } = useLocaleManagement({ section: "screenshots", primaryLocale });
 
   const versionLocales = useMemo(
     () => localizations.map((l) => l.attributes.locale),
@@ -534,11 +523,6 @@ export default function ScreenshotsPage() {
       return [primaryLocale];
     });
   }, [primaryLocale]);
-
-  // Report locales to cross-section context
-  useEffect(() => {
-    reportLocales(locales);
-  }, [locales, reportLocales]);
 
   const selectedLocalization = localizations.find(
     (l) => l.attributes.locale === selectedLocale,
@@ -616,11 +600,6 @@ export default function ScreenshotsPage() {
     [selectedCategory, existingTypes],
   );
 
-  // ---- Upload state ----
-  const [uploadingSetIds, setUploadingSetIds] = useState<Set<string>>(new Set());
-  const [creatingVariant, setCreatingVariant] = useState(false);
-
-
   // ---- Drag sensors ----
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -630,139 +609,20 @@ export default function ScreenshotsPage() {
   // Build the API base path
   const apiBase = `/api/apps/${appId}/versions/${versionId}/localizations/${localizationId}/screenshots`;
 
-  // ---- Handlers ----
-
-  const handleUpload = useCallback(
-    async (setId: string, file: File) => {
-      setUploadingSetIds((prev) => new Set(prev).add(setId));
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("setId", setId);
-
-        const res = await fetch(apiBase, { method: "POST", body: formData });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Upload failed");
-        }
-        toast.success("Screenshot uploaded");
-        await refresh();
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to upload screenshot",
-        );
-      } finally {
-        setUploadingSetIds((prev) => {
-          const next = new Set(prev);
-          next.delete(setId);
-          return next;
-        });
-      }
-    },
-    [apiBase, refresh],
-  );
-
-  const handleDeleteScreenshot = useCallback(
-    async (screenshotId: string) => {
-      try {
-        const res = await fetch(`${apiBase}/${screenshotId}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Delete failed");
-        }
-        toast.success("Screenshot deleted");
-        await refresh();
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to delete screenshot",
-        );
-      }
-    },
-    [apiBase, refresh],
-  );
-
-  const handleDragEnd = useCallback(
-    async (setId: string, event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-
-      const set = screenshotSets.find((s) => s.id === setId);
-      if (!set) return;
-
-      const ids = set.screenshots.map((s) => s.id);
-      const oldIndex = ids.indexOf(active.id as string);
-      const newIndex = ids.indexOf(over.id as string);
-      const newOrder = arrayMove(ids, oldIndex, newIndex);
-
-      try {
-        const res = await fetch(`${apiBase}/reorder`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ setId, screenshotIds: newOrder }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Reorder failed");
-        }
-        await refresh();
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to reorder screenshots",
-        );
-      }
-    },
-    [apiBase, refresh, screenshotSets],
-  );
-
-  const handleAddVariant = useCallback(
-    async (displayType: string) => {
-      if (!localizationId) return;
-      setCreatingVariant(true);
-      try {
-        const res = await fetch(`${apiBase}/sets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ displayType }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          toast.error(data.error ?? "Failed to create screenshot set");
-          return;
-        }
-        toast.success(`Added ${displayTypeLabel(displayType)}`);
-        await refresh();
-      } catch {
-        toast.error("Failed to create screenshot set");
-      } finally {
-        setCreatingVariant(false);
-      }
-    },
-    [apiBase, localizationId, refresh],
-  );
-
-  const handleDeleteSet = useCallback(
-    async (setId: string) => {
-      try {
-        const res = await fetch(`${apiBase}/sets`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ setId }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          toast.error(data.error ?? "Failed to remove variant");
-          return;
-        }
-        toast.success("Variant removed");
-        await refresh();
-      } catch {
-        toast.error("Failed to remove variant");
-      }
-    },
-    [apiBase, refresh],
-  );
+  const {
+    uploadingSetIds,
+    creatingVariant,
+    handleUpload,
+    handleDeleteScreenshot,
+    handleDragEnd,
+    handleAddVariant,
+    handleDeleteSet,
+  } = useScreenshotOperations({
+    apiBase,
+    localizationId,
+    refresh,
+    screenshotSets,
+  });
 
   async function createLocalization(locale: string) {
     const res = await fetch(

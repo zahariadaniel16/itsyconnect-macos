@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,9 +26,10 @@ import {
   FIELD_LIMITS,
 } from "@/lib/asc/locale-names";
 import { CharCount } from "@/components/char-count";
-import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
+import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
+import { apiFetch } from "@/lib/api-fetch";
 
 
 interface LocaleFields {
@@ -71,7 +72,6 @@ function buildLocaleData(
 export default function StoreListingPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
   const { versions, loading: versionsLoading, updateVersion } = useVersions();
@@ -91,22 +91,15 @@ export default function StoreListingPage() {
   const primaryLocale = app?.primaryLocale ?? "";
 
   const [localeData, setLocaleData] = useState<Record<string, LocaleFields>>({});
-  const [locales, setLocales] = useState<string[]>([]);
-  const [selectedLocale, setSelectedLocale] = useState(
-    () => searchParams.get("locale") ?? "",
-  );
+
+  const {
+    locales, setLocales,
+    selectedLocale, setSelectedLocale,
+    changeLocale,
+    otherSectionLocales,
+  } = useLocaleManagement({ section: "store-listing", primaryLocale });
 
   const current = localeData[selectedLocale] ?? emptyLocaleFields();
-
-  const changeLocale = useCallback(
-    (code: string) => {
-      setSelectedLocale(code);
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("locale", code);
-      router.replace(`?${next.toString()}`, { scroll: false });
-    },
-    [searchParams, router],
-  );
 
   const { report: reportChecklist } = useSubmissionChecklist();
   const { setDirty, registerSave, setValidationErrors } = useFormDirty();
@@ -138,8 +131,6 @@ export default function StoreListingPage() {
   // Track original locale → localization ID mapping for diffing saves
   const originalLocaleIdsRef = useRef<Record<string, string>>({});
 
-  const { reportLocales, otherSectionLocales } = useSectionLocales("store-listing");
-
   // Reset locale data when localizations change (during render)
   const [prevLocalizations, setPrevLocalizations] = useState(localizations);
   if (localizations !== prevLocalizations) {
@@ -167,11 +158,6 @@ export default function StoreListingPage() {
     }
     originalLocaleIdsRef.current = ids;
   }, [localizations]);
-
-  // Report locales to cross-section context
-  useEffect(() => {
-    reportLocales(locales);
-  }, [locales, reportLocales]);
 
   // Validate field limits across all locales
   useEffect(() => {
@@ -742,20 +728,15 @@ function VersionStringSection({
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/apps/${appId}/versions/${version.id}`, {
+      await apiFetch(`/api/apps/${appId}/versions/${version.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ versionString: trimmed }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Failed to update version");
-        return;
-      }
       onUpdated(trimmed);
       setEditing(false);
-    } catch {
-      toast.error("Failed to update version");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update version");
     } finally {
       setSaving(false);
     }

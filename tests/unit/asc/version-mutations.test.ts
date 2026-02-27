@@ -16,6 +16,9 @@ import {
   enablePhasedRelease,
   disablePhasedRelease,
   createVersion,
+  deleteVersion,
+  cancelSubmission,
+  releaseVersion,
   invalidateVersionsCache,
 } from "@/lib/asc/version-mutations";
 
@@ -101,6 +104,54 @@ describe("version-mutations", () => {
       await createVersion("app-1", "2.0.0", "IOS");
 
       expect(mockCacheInvalidate).toHaveBeenCalledWith("versions:app-1");
+    });
+  });
+
+  describe("deleteVersion", () => {
+    it("DELETEs the version", async () => {
+      mockAscFetch.mockResolvedValue(null);
+
+      await deleteVersion("ver-1");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/appStoreVersions/ver-1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  describe("cancelSubmission", () => {
+    it("fetches the submission then DELETEs it", async () => {
+      mockAscFetch
+        .mockResolvedValueOnce({ data: { id: "sub-1" } })
+        .mockResolvedValueOnce(null);
+
+      await cancelSubmission("ver-1");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/appStoreVersions/ver-1/appStoreVersionSubmission",
+      );
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/appStoreVersionSubmissions/sub-1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  describe("releaseVersion", () => {
+    it("POSTs a release request for the version", async () => {
+      mockAscFetch.mockResolvedValue({});
+
+      await releaseVersion("ver-1");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/appStoreVersionReleaseRequests",
+        expect.objectContaining({ method: "POST" }),
+      );
+
+      const body = JSON.parse(mockAscFetch.mock.calls[0][1].body);
+      expect(body.data.type).toBe("appStoreVersionReleaseRequests");
+      expect(body.data.relationships.appStoreVersion.data.id).toBe("ver-1");
     });
   });
 

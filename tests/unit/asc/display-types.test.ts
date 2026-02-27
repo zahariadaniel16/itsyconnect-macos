@@ -3,6 +3,7 @@ import {
   displayTypeLabel,
   sortDisplayTypes,
   screenshotImageUrl,
+  getDeviceCategory,
   DISPLAY_TYPE_LABELS,
   DISPLAY_TYPE_ORDER,
 } from "@/lib/asc/display-types";
@@ -56,6 +57,20 @@ describe("display-types", () => {
     it("matches all items in DISPLAY_TYPE_ORDER", () => {
       const sorted = sortDisplayTypes([...DISPLAY_TYPE_ORDER].reverse());
       expect(sorted).toEqual(DISPLAY_TYPE_ORDER);
+    });
+  });
+
+  describe("getDeviceCategory", () => {
+    it("returns the category for a known iPhone type", () => {
+      expect(getDeviceCategory("APP_IPHONE_67")).toBe("iPhone");
+    });
+
+    it("returns the category for an iPad type", () => {
+      expect(getDeviceCategory("APP_IPAD_PRO_3GEN_129")).toBe("iPad");
+    });
+
+    it("returns undefined for an unknown display type", () => {
+      expect(getDeviceCategory("UNKNOWN_TYPE")).toBeUndefined();
     });
   });
 
