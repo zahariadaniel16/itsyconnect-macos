@@ -48,6 +48,10 @@ export function cacheInvalidatePrefix(prefix: string): void {
     .run();
 }
 
+export function cacheInvalidateAll(): void {
+  db.delete(cacheEntries).run();
+}
+
 export function cacheGetMeta(resource: string): { fetchedAt: number; ttlMs: number } | null {
   const entry = db
     .select({ fetchedAt: cacheEntries.fetchedAt, ttlMs: cacheEntries.ttlMs })

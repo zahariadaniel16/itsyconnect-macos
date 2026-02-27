@@ -14,6 +14,7 @@ vi.mock("@/lib/cache", () => ({
 }));
 
 import { listScreenshotSets } from "@/lib/asc/screenshots";
+import { screenshotImageUrl } from "@/lib/asc/display-types";
 
 describe("listScreenshotSets", () => {
   beforeEach(() => {
@@ -31,25 +32,23 @@ describe("listScreenshotSets", () => {
     expect(mockAscFetch).not.toHaveBeenCalled();
   });
 
-  it("fetches from API and resolves included screenshots", async () => {
+  it("fetches sets then screenshots per set", async () => {
     mockCacheGet.mockReturnValue(null);
-    mockAscFetch.mockResolvedValue({
+
+    // First call: list screenshot sets
+    mockAscFetch.mockResolvedValueOnce({
       data: [
         {
           id: "set-1",
           type: "appScreenshotSets",
           attributes: { screenshotDisplayType: "APP_IPHONE_67" },
-          relationships: {
-            appScreenshots: {
-              data: [
-                { id: "ss-1", type: "appScreenshots" },
-                { id: "ss-2", type: "appScreenshots" },
-              ],
-            },
-          },
         },
       ],
-      included: [
+    });
+
+    // Second call: list screenshots for set-1
+    mockAscFetch.mockResolvedValueOnce({
+      data: [
         {
           id: "ss-1",
           type: "appScreenshots",
@@ -81,6 +80,7 @@ describe("listScreenshotSets", () => {
     expect(result[0].screenshots[0].id).toBe("ss-1");
     expect(result[0].screenshots[1].attributes.fileName).toBe("screen2.png");
     expect(mockCacheSet).toHaveBeenCalled();
+    expect(mockAscFetch).toHaveBeenCalledTimes(2);
   });
 
   it("bypasses cache when forceRefresh is true", async () => {
@@ -99,86 +99,46 @@ describe("listScreenshotSets", () => {
     expect(result).toEqual([]);
   });
 
-  it("handles missing included array", async () => {
+  it("handles set with no screenshots", async () => {
     mockCacheGet.mockReturnValue(null);
-    mockAscFetch.mockResolvedValue({
+
+    mockAscFetch.mockResolvedValueOnce({
       data: [
         {
           id: "set-1",
           type: "appScreenshotSets",
           attributes: { screenshotDisplayType: "APP_IPHONE_67" },
-          relationships: {
-            appScreenshots: {
-              data: [{ id: "ss-1", type: "appScreenshots" }],
-            },
-          },
         },
       ],
     });
+
+    mockAscFetch.mockResolvedValueOnce({ data: [] });
 
     const result = await listScreenshotSets("loc-1");
     expect(result[0].screenshots).toEqual([]);
   });
 
-  it("handles missing appScreenshots relationship data", async () => {
+  it("fetches multiple sets in parallel", async () => {
     mockCacheGet.mockReturnValue(null);
-    mockAscFetch.mockResolvedValue({
+
+    mockAscFetch.mockResolvedValueOnce({
       data: [
         {
           id: "set-1",
           type: "appScreenshotSets",
           attributes: { screenshotDisplayType: "APP_IPHONE_67" },
-          relationships: {},
         },
-      ],
-      included: [],
-    });
-
-    const result = await listScreenshotSets("loc-1");
-    expect(result[0].screenshots).toEqual([]);
-  });
-
-  it("skips non-appScreenshots in included array", async () => {
-    mockCacheGet.mockReturnValue(null);
-    mockAscFetch.mockResolvedValue({
-      data: [
         {
-          id: "set-1",
+          id: "set-2",
           type: "appScreenshotSets",
-          attributes: { screenshotDisplayType: "APP_IPHONE_67" },
-          relationships: {
-            appScreenshots: { data: [] },
-          },
+          attributes: { screenshotDisplayType: "APP_IPAD_PRO_3GEN_129" },
         },
-      ],
-      included: [
-        { id: "other-1", type: "otherType", attributes: {} },
       ],
     });
 
-    const result = await listScreenshotSets("loc-1");
-    expect(result[0].screenshots).toEqual([]);
-  });
-
-  it("filters out screenshots not found in included", async () => {
-    mockCacheGet.mockReturnValue(null);
-    mockAscFetch.mockResolvedValue({
+    // Screenshots for set-1
+    mockAscFetch.mockResolvedValueOnce({
       data: [
-        {
-          id: "set-1",
-          type: "appScreenshotSets",
-          attributes: { screenshotDisplayType: "APP_IPHONE_67" },
-          relationships: {
-            appScreenshots: {
-              data: [
-                { id: "ss-1", type: "appScreenshots" },
-                { id: "ss-missing", type: "appScreenshots" },
-              ],
-            },
-          },
-        },
-      ],
-      included: [
         {
           id: "ss-1",
           type: "appScreenshots",
@@ -193,7 +153,43 @@ describe("listScreenshotSets", () => {
       ],
     });
 
+    // Screenshots for set-2
+    mockAscFetch.mockResolvedValueOnce({
+      data: [
+        {
+          id: "ss-2",
+          type: "appScreenshots",
+          attributes: {
+            fileSize: 2048,
+            fileName: "screen2.png",
+            sourceFileChecksum: "abc",
+            assetDeliveryState: { state: "COMPLETE" },
+            assetToken: "token-2",
+          },
+        },
+      ],
+    });
+
     const result = await listScreenshotSets("loc-1");
+    expect(result).toHaveLength(2);
     expect(result[0].screenshots).toHaveLength(1);
+    expect(result[1].screenshots).toHaveLength(1);
+    expect(mockAscFetch).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("screenshotImageUrl", () => {
+  it("builds URL with default width", () => {
+    const url = screenshotImageUrl("PurpleSource/v4/abc/1.png");
+    expect(url).toBe(
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource/v4/abc/1.png/300x0w.png",
+    );
+  });
+
+  it("builds URL with custom width", () => {
+    const url = screenshotImageUrl("PurpleSource/v4/abc/1.png", 600);
+    expect(url).toBe(
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource/v4/abc/1.png/600x0w.png",
+    );
   });
 });

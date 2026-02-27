@@ -5,7 +5,7 @@
 </p>
 
 <p>
-  <a href="https://github.com/nickustinov/itsyship/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
+  <a href="https://github.com/nickustinov/itsyship/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--v3-blue.svg" alt="License" /></a>
   <a href="https://github.com/nickustinov/itsyship/actions"><img src="https://img.shields.io/github/actions/workflow/status/nickustinov/itsyship/ci.yml?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/electron-40-9feaf9" alt="Electron" />
   <img src="https://img.shields.io/badge/next.js-16-black" alt="Next.js 16" />
@@ -80,4 +80,4 @@ npm run lint                  # ESLint
 
 ## License
 
-[MIT](LICENSE)
+[AGPL-3.0](LICENSE)

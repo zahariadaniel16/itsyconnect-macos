@@ -2,6 +2,7 @@
   "name": "itsyship-com",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "main": "electron/main.js",
   "scripts": {
     "lint": "eslint",
@@ -18,6 +19,9 @@
     "electron:make:mas": "npm run electron:compile && next build && npm run electron:prepare && electron-forge make --targets=@electron-forge/maker-pkg --platform=mas"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@phosphor-icons/react": "^2.1.10",
     "appstore-connect-sdk": "^2.0.0",

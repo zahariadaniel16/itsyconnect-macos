@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import {
   getVersionPlatforms,
@@ -174,7 +175,8 @@ export function HeaderVersionActions() {
 
 export function HeaderRefreshButton() {
   const { appId } = useParams<{ appId?: string }>();
-  const { loading, refresh } = useVersions();
+  const { refresh: refreshApps } = useApps();
+  const { loading, refresh: refreshVersions } = useVersions();
   const [refreshing, setRefreshing] = useState(false);
 
   if (!appId) return null;
@@ -185,9 +187,9 @@ export function HeaderRefreshButton() {
       await fetch("/api/refresh", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resource: `versions:${appId}` }),
+        body: JSON.stringify({ appId }),
       });
-      await refresh();
+      await Promise.all([refreshApps(), refreshVersions()]);
     } finally {
       setRefreshing(false);
     }

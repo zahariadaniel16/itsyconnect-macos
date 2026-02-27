@@ -7,6 +7,7 @@ export { getVersionPlatforms, getVersionsByPlatform, resolveVersion } from "./ve
 
 const VERSIONS_TTL = 15 * 60 * 1000; // 15 min
 
+
 interface AscVersionsResponse {
   data: Array<{
     id: string;
@@ -67,7 +68,7 @@ export async function listVersions(
 
   const response = await ascFetch<AscVersionsResponse>(
     `/v1/apps/${appId}/appStoreVersions` +
-      `?fields[appStoreVersions]=versionString,appVersionState,appStoreState,platform,copyright,releaseType,earliestReleaseDate,downloadable,createdDate` +
+      `?fields[appStoreVersions]=versionString,appVersionState,appStoreState,platform,copyright,releaseType,earliestReleaseDate,downloadable,createdDate,build,appStoreReviewDetail` +
       `&include=build,appStoreReviewDetail` +
       `&fields[builds]=version,uploadedDate,processingState,minOsVersion,iconAssetToken` +
       `&fields[appStoreReviewDetails]=contactEmail,contactFirstName,contactLastName,contactPhone,demoAccountName,demoAccountPassword,demoAccountRequired,notes`,

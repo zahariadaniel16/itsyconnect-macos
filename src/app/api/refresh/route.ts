@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { cacheInvalidate, cacheInvalidatePrefix } from "@/lib/cache";
+import { cacheInvalidateAll } from "@/lib/cache";
 
 import { listApps } from "@/lib/asc/apps";
 import { listVersions } from "@/lib/asc/versions";
-import { listLocalizations } from "@/lib/asc/localizations";
-import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
-import { listScreenshotSets } from "@/lib/asc/screenshots";
 import { hasCredentials } from "@/lib/asc/client";
 
 const refreshSchema = z.object({
-  resource: z.string().min(1),
+  appId: z.string().min(1),
 });
 
 export async function POST(request: Request) {
@@ -28,38 +25,14 @@ export async function POST(request: Request) {
 
   const parsed = refreshSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Missing resource" }, { status: 400 });
+    return NextResponse.json({ error: "Missing appId" }, { status: 400 });
   }
 
-  const { resource } = parsed.data;
-
   try {
-    // Invalidate cache
-    if (resource.includes("*")) {
-      cacheInvalidatePrefix(resource.replace("*", ""));
-    } else {
-      cacheInvalidate(resource);
-    }
-
-    // Re-fetch the resource
-    if (resource === "apps") {
-      await listApps(true);
-    } else if (resource.startsWith("versions:")) {
-      const appId = resource.replace("versions:", "");
-      await listVersions(appId, true);
-    } else if (resource.startsWith("localizations:")) {
-      const versionId = resource.replace("localizations:", "");
-      await listLocalizations(versionId, true);
-    } else if (resource.startsWith("appInfos:")) {
-      const appId = resource.replace("appInfos:", "");
-      await listAppInfos(appId, true);
-    } else if (resource.startsWith("appInfoLocalizations:")) {
-      const appInfoId = resource.replace("appInfoLocalizations:", "");
-      await listAppInfoLocalizations(appInfoId, true);
-    } else if (resource.startsWith("screenshotSets:")) {
-      const localizationId = resource.replace("screenshotSets:", "");
-      await listScreenshotSets(localizationId, true);
-    }
+    // Invalidate all cached data and re-fetch the essentials
+    cacheInvalidateAll();
+    await listApps(true);
+    await listVersions(parsed.data.appId, true);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

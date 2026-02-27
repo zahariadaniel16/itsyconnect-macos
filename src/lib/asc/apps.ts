@@ -26,37 +26,50 @@ interface AscAppsResponse {
   }>;
 }
 
-interface ItunesLookupResponse {
-  results: Array<{
-    trackId: number;
-    artworkUrl512?: string;
-    artworkUrl100?: string;
+interface AscBuildsResponse {
+  data: Array<{
+    id: string;
+    attributes: {
+      iconAssetToken?: {
+        templateUrl: string;
+      } | null;
+    };
   }>;
 }
 
-/** Fetch app icons from Apple's public iTunes lookup API. */
-async function fetchIconUrls(
+/** Replace `{w}`, `{h}`, `{f}` placeholders in a build icon template URL. */
+export function buildIconUrl(templateUrl: string, size = 128): string {
+  return templateUrl
+    .replace("{w}", String(size))
+    .replace("{h}", String(size))
+    .replace("{f}", "png");
+}
+
+/** Fetch app icons from the latest build of each app via ASC API. */
+async function fetchBuildIconUrls(
   appIds: string[],
 ): Promise<Map<string, string>> {
   const icons = new Map<string, string>();
   if (appIds.length === 0) return icons;
 
-  try {
-    const res = await fetch(
-      `https://itunes.apple.com/lookup?id=${appIds.join(",")}&country=us`,
-      { signal: AbortSignal.timeout(10_000) },
-    );
-    if (!res.ok) return icons;
-
-    const data: ItunesLookupResponse = await res.json();
-    for (const result of data.results) {
-      const url = result.artworkUrl512 ?? result.artworkUrl100;
-      if (url) {
-        icons.set(String(result.trackId), url);
+  const results = await Promise.allSettled(
+    appIds.map(async (appId) => {
+      const response = await ascFetch<AscBuildsResponse>(
+        `/v1/builds?filter[app]=${appId}&sort=-uploadedDate&limit=1&fields[builds]=iconAssetToken`,
+      );
+      const build = response.data[0];
+      const templateUrl = build?.attributes?.iconAssetToken?.templateUrl;
+      if (templateUrl) {
+        icons.set(appId, buildIconUrl(templateUrl));
       }
+    }),
+  );
+
+  // Log failures for debugging but don't throw
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.warn("Failed to fetch build icon:", result.reason);
     }
-  } catch {
-    // Icon fetch is best-effort – don't fail the whole request
   }
 
   return icons;
@@ -65,15 +78,14 @@ async function fetchIconUrls(
 export async function listApps(forceRefresh = false): Promise<AscApp[]> {
   if (!forceRefresh) {
     const cached = cacheGet<AscApp[]>("apps");
-    // Treat cache as stale if iconUrl field is missing (schema upgrade)
-    if (cached && cached[0]?.attributes?.iconUrl !== undefined) return cached;
+    if (cached) return cached;
   }
 
   const response = await ascFetch<AscAppsResponse>(
     "/v1/apps?fields[apps]=name,bundleId,sku,primaryLocale&limit=200",
   );
 
-  const iconUrls = await fetchIconUrls(response.data.map((a) => a.id));
+  const iconUrls = await fetchBuildIconUrls(response.data.map((a) => a.id));
 
   const apps: AscApp[] = response.data.map((a) => ({
     id: a.id,

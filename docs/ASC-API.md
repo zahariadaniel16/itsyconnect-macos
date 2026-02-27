@@ -19,19 +19,24 @@ GET /v1/apps
 
 Returns: `{ id, attributes: { name, bundleId, sku, primaryLocale } }`
 
-App icons are fetched from the public iTunes API (no auth needed):
+App icons are fetched from each app's latest build via ASC API:
 ```
-GET https://itunes.apple.com/lookup?id={appleId}&country=us
+GET /v1/builds
+  filter[app] = {appId}
+  sort = -uploadedDate
+  limit = 1
+  fields[builds] = iconAssetToken
 ```
-Returns `artworkUrl512` in results.
+Returns `iconAssetToken.templateUrl` – replace `{w}`, `{h}`, `{f}` placeholders (e.g. `128x128bb.png`). Works for any app with at least one uploaded build, regardless of publication status.
 
 ### Overview page
 
 ```
 GET /v1/apps/{appId}/appStoreVersions
   fields[appStoreVersions] = versionString,appVersionState,appStoreState,platform,copyright,
-                              releaseType,earliestReleaseDate,downloadable,createdDate,reviewType
-  include = build,appStoreVersionSubmission,appStoreReviewDetail
+                              releaseType,earliestReleaseDate,downloadable,createdDate,
+                              build,appStoreReviewDetail    ← relationship names required (see quirk #1)
+  include = build,appStoreReviewDetail
   fields[builds] = version,uploadedDate,processingState,minOsVersion,iconAssetToken
   fields[appStoreReviewDetails] = contactEmail,contactFirstName,contactLastName,contactPhone,
                                    demoAccountName,demoAccountPassword,demoAccountRequired,notes
@@ -267,9 +272,11 @@ Replace `{w}` and `{h}` with pixel dimensions, `{f}` with format (`png`, `jpg`, 
 
 ## Known API quirks
 
-1. **`sort` not allowed on `/appStoreVersions`** – versions come in creation order, newest first
-2. **`betaGroups` relationship on builds is write-only** – `GET /v1/builds/{id}/betaGroups` returns empty; query groups via `/v1/betaGroups` instead
-3. **Age rating fields** – don't specify `fields[ageRatingDeclarations]`; let the API return defaults. Some documented fields like `gamblingAndContests`, `seventeenPlus` are rejected
-4. **`appStoreVersionSubmissions`** – has no queryable fields; include it only for relationship presence detection
-5. **Public link testers** – `firstName` is `"Anonymous"`, `email` is null, `inviteType` is `"PUBLIC_LINK"`
-6. **Build expiry** – 90 days from upload. `expired: true` + `expirationDate` in the past means the build is no longer installable
+1. **`fields[type]` strips relationships** – the ASC API follows JSON:API sparse fieldsets: when you specify `fields[someType]=attr1,attr2`, the response omits **all** relationship pointers not listed. To keep relationship data needed by `include`, you must add the relationship names to `fields`. For example: `fields[appStoreVersions]=versionString,...,build,appStoreReviewDetail` – without `build,appStoreReviewDetail` in the list, the `relationships` key is missing from each version object and `resolveIncluded()` cannot match included items to their parents.
+2. **`sort` not allowed on `/appStoreVersions`** – versions come in creation order, newest first
+3. **`betaGroups` relationship on builds is write-only** – `GET /v1/builds/{id}/betaGroups` returns empty; query groups via `/v1/betaGroups` instead
+4. **Age rating fields** – don't specify `fields[ageRatingDeclarations]`; let the API return defaults. Some documented fields like `gamblingAndContests`, `seventeenPlus` are rejected
+5. **`appStoreVersionSubmissions`** – has no queryable fields; include it only for relationship presence detection
+6. **Public link testers** – `firstName` is `"Anonymous"`, `email` is null, `inviteType` is `"PUBLIC_LINK"`
+7. **Build expiry** – 90 days from upload. `expired: true` + `expirationDate` in the past means the build is no longer installable
+8. **Screenshot set `relationships` omitted** – when querying `/appScreenshotSets?include=appScreenshots`, the API returns screenshots in `included` but omits the `relationships` key on each set, making it impossible to map screenshots to their parent set. Workaround: fetch screenshots per set via `/v1/appScreenshotSets/{id}/appScreenshots`

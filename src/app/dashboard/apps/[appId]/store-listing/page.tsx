@@ -28,10 +28,7 @@ import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
-import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
-import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import type { AscLocalization } from "@/lib/asc/localizations";
-import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
 import {
   localeName,
   LOCALE_NAMES,
@@ -40,12 +37,12 @@ import {
 
 
 interface LocaleFields {
-  name: string;
-  subtitle: string;
   description: string;
   keywords: string;
   whatsNew: string;
   promotionalText: string;
+  supportUrl: string;
+  marketingUrl: string;
 }
 
 /** Sort locales: primary locale first, rest alphabetical by display name. */
@@ -59,36 +56,27 @@ function sortLocales(codes: string[], primaryLocale: string): string[] {
 
 function emptyLocaleFields(): LocaleFields {
   return {
-    name: "",
-    subtitle: "",
     description: "",
     keywords: "",
     whatsNew: "",
     promotionalText: "",
+    supportUrl: "",
+    marketingUrl: "",
   };
 }
 
 function buildLocaleData(
   localizations: AscLocalization[],
-  appInfoLocs: AscAppInfoLocalization[],
 ): Record<string, LocaleFields> {
   const data: Record<string, LocaleFields> = {};
-
-  // Build lookup for app info localizations by locale
-  const infoByLocale = new Map<string, AscAppInfoLocalization>();
-  for (const loc of appInfoLocs) {
-    infoByLocale.set(loc.attributes.locale, loc);
-  }
-
   for (const loc of localizations) {
-    const info = infoByLocale.get(loc.attributes.locale);
     data[loc.attributes.locale] = {
-      name: info?.attributes.name ?? "",
-      subtitle: info?.attributes.subtitle ?? "",
       description: loc.attributes.description ?? "",
       keywords: loc.attributes.keywords ?? "",
       whatsNew: loc.attributes.whatsNew ?? "",
       promotionalText: loc.attributes.promotionalText ?? "",
+      supportUrl: loc.attributes.supportUrl ?? "",
+      marketingUrl: loc.attributes.marketingUrl ?? "",
     };
   }
   return data;
@@ -113,12 +101,6 @@ export default function StoreListingPage() {
 
   const { localizations, loading: locLoading } = useLocalizations(appId, versionId);
 
-  // App info localizations for name & subtitle (app-level, not version-specific)
-  const { appInfos, loading: infoLoading } = useAppInfo(appId);
-  const appInfoId = pickAppInfo(appInfos)?.id ?? "";
-  const { localizations: appInfoLocs, loading: appInfoLocLoading } =
-    useAppInfoLocalizations(appId, appInfoId);
-
   const primaryLocale = app?.primaryLocale ?? "";
 
   const [localeData, setLocaleData] = useState<Record<string, LocaleFields>>({});
@@ -133,12 +115,12 @@ export default function StoreListingPage() {
 
   // Reset locale data when localizations change
   useEffect(() => {
-    const data = buildLocaleData(localizations, appInfoLocs);
+    const data = buildLocaleData(localizations);
     setLocaleData(data);
     const sorted = sortLocales(Object.keys(data), primaryLocale);
     setLocales(sorted);
     setSelectedLocale(sorted[0] ?? "");
-  }, [localizations, appInfoLocs, primaryLocale]);
+  }, [localizations, primaryLocale]);
 
   const updateField = useCallback(
     (field: keyof LocaleFields, value: string) => {
@@ -173,7 +155,7 @@ export default function StoreListingPage() {
     );
   }
 
-  if (versionsLoading || locLoading || infoLoading || appInfoLocLoading) {
+  if (versionsLoading || locLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
@@ -279,31 +261,6 @@ export default function StoreListingPage() {
           </div>
         ) : (
           <>
-            {/* Name & subtitle */}
-            <section className="space-y-2">
-              <h3 className="section-title">Name &amp; subtitle</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm text-muted-foreground">Name</label>
-                  <Input
-                    value={current.name}
-                    onChange={(e) => updateField("name", e.target.value)}
-                    readOnly={readOnly}
-                    className="text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-muted-foreground">Subtitle</label>
-                  <Input
-                    value={current.subtitle}
-                    onChange={(e) => updateField("subtitle", e.target.value)}
-                    readOnly={readOnly}
-                    className="text-sm"
-                  />
-                </div>
-              </div>
-            </section>
-
             {/* Description */}
             <section className="space-y-2">
               <h3 className="section-title">Description</h3>
@@ -314,7 +271,7 @@ export default function StoreListingPage() {
                     onChange={(e) => updateField("description", e.target.value)}
                     readOnly={readOnly}
                     placeholder="Describe your app..."
-                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none font-mono text-xs md:text-xs min-h-0"
+                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
                   />
                 </CardContent>
                 <div className="flex items-center justify-end border-t px-3 py-1.5">
@@ -336,7 +293,7 @@ export default function StoreListingPage() {
                     onChange={(e) => updateField("keywords", e.target.value)}
                     readOnly={readOnly}
                     placeholder="keyword1,keyword2,keyword3"
-                    className="border-0 p-0 shadow-none focus-visible:ring-0 font-mono text-xs md:text-xs h-auto"
+                    className="border-0 p-0 shadow-none focus-visible:ring-0 text-sm h-auto"
                   />
                 </CardContent>
                 <div className="flex items-center justify-end border-t px-3 py-1.5">
@@ -358,7 +315,7 @@ export default function StoreListingPage() {
                     onChange={(e) => updateField("whatsNew", e.target.value)}
                     readOnly={readOnly}
                     placeholder="Describe what's new in this version..."
-                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none font-mono text-xs md:text-xs min-h-0"
+                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
                   />
                 </CardContent>
                 <div className="flex items-center justify-end border-t px-3 py-1.5">
@@ -382,7 +339,7 @@ export default function StoreListingPage() {
                     }
                     readOnly={readOnly}
                     placeholder="Inform App Store visitors of current features..."
-                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none font-mono text-xs md:text-xs min-h-0"
+                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
                   />
                 </CardContent>
                 <div className="flex items-center justify-end border-t px-3 py-1.5">
@@ -392,6 +349,37 @@ export default function StoreListingPage() {
                   />
                 </div>
               </Card>
+            </section>
+
+            {/* URLs */}
+            <section className="space-y-2">
+              <h3 className="section-title">URLs</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">
+                    Support URL
+                  </label>
+                  <Input
+                    value={current.supportUrl}
+                    onChange={(e) => updateField("supportUrl", e.target.value)}
+                    readOnly={readOnly}
+                    placeholder="https://..."
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">
+                    Marketing URL
+                  </label>
+                  <Input
+                    value={current.marketingUrl}
+                    onChange={(e) => updateField("marketingUrl", e.target.value)}
+                    readOnly={readOnly}
+                    placeholder="https://..."
+                    className="text-sm"
+                  />
+                </div>
+              </div>
             </section>
 
           </>

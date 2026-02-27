@@ -1,42 +1,25 @@
 import { ascFetch } from "./client";
 import { cacheGet, cacheSet } from "@/lib/cache";
+import type { AscScreenshot, AscScreenshotSet } from "./display-types";
 
-const SCREENSHOTS_TTL = 15 * 60 * 1000; // 15 min
+export type { AscScreenshot, AscScreenshotSet };
+export { screenshotImageUrl } from "./display-types";
 
-export interface AscScreenshot {
-  id: string;
-  attributes: {
-    fileSize: number;
-    fileName: string;
-    sourceFileChecksum: string | null;
-    assetDeliveryState: { state: string } | null;
-    assetToken: string | null;
-  };
-}
+const SCREENSHOTS_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-export interface AscScreenshotSet {
-  id: string;
-  attributes: {
-    screenshotDisplayType: string;
-  };
-  screenshots: AscScreenshot[];
-}
-
-interface AscScreenshotSetsResponse {
+interface AscScreenshotSetsListResponse {
   data: Array<{
     id: string;
     type: string;
     attributes: AscScreenshotSet["attributes"];
-    relationships: {
-      appScreenshots?: {
-        data: Array<{ id: string; type: string }>;
-      };
-    };
   }>;
-  included?: Array<{
+}
+
+interface AscScreenshotsListResponse {
+  data: Array<{
     id: string;
     type: string;
-    attributes: Record<string, unknown>;
+    attributes: AscScreenshot["attributes"];
   }>;
 }
 
@@ -51,34 +34,30 @@ export async function listScreenshotSets(
     if (cached) return cached;
   }
 
-  const response = await ascFetch<AscScreenshotSetsResponse>(
+  // Step 1: get screenshot sets for this localization
+  const setsResponse = await ascFetch<AscScreenshotSetsListResponse>(
     `/v1/appStoreVersionLocalizations/${localizationId}/appScreenshotSets` +
-      `?include=appScreenshots` +
-      `&fields[appScreenshotSets]=screenshotDisplayType` +
-      `&fields[appScreenshots]=fileSize,fileName,sourceFileChecksum,assetDeliveryState,assetToken`,
+      `?fields[appScreenshotSets]=screenshotDisplayType`,
   );
 
-  const screenshotsById = new Map<string, AscScreenshot>();
-  for (const item of response.included ?? []) {
-    if (item.type === "appScreenshots") {
-      screenshotsById.set(item.id, {
-        id: item.id,
-        attributes: item.attributes as unknown as AscScreenshot["attributes"],
-      });
-    }
-  }
-
-  const sets: AscScreenshotSet[] = response.data.map((s) => {
-    const screenshotIds =
-      s.relationships.appScreenshots?.data?.map((r) => r.id) ?? [];
-    return {
-      id: s.id,
-      attributes: s.attributes,
-      screenshots: screenshotIds
-        .map((id) => screenshotsById.get(id))
-        .filter((s): s is AscScreenshot => !!s),
-    };
-  });
+  // Step 2: fetch screenshots for each set in parallel
+  // (Apple omits relationships from the include response, so we fetch per-set)
+  const sets: AscScreenshotSet[] = await Promise.all(
+    setsResponse.data.map(async (s) => {
+      const ssResponse = await ascFetch<AscScreenshotsListResponse>(
+        `/v1/appScreenshotSets/${s.id}/appScreenshots` +
+          `?fields[appScreenshots]=fileSize,fileName,sourceFileChecksum,assetDeliveryState,assetToken`,
+      );
+      return {
+        id: s.id,
+        attributes: s.attributes,
+        screenshots: ssResponse.data.map((ss) => ({
+          id: ss.id,
+          attributes: ss.attributes,
+        })),
+      };
+    }),
+  );
 
   cacheSet(cacheKey, sets, SCREENSHOTS_TTL);
   return sets;

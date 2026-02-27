@@ -16,6 +16,7 @@ import {
   cacheSet,
   cacheInvalidate,
   cacheInvalidatePrefix,
+  cacheInvalidateAll,
   cacheGetMeta,
 } from "@/lib/cache";
 
@@ -83,6 +84,18 @@ describe("cache", () => {
       expect(cacheGet("versions:app-1")).toBeNull();
       expect(cacheGet("versions:app-2")).toBeNull();
       expect(cacheGet("apps")).toEqual([]);
+    });
+  });
+
+  describe("cacheInvalidateAll", () => {
+    it("removes all cached entries", () => {
+      cacheSet("apps", [], 60_000);
+      cacheSet("versions:app-1", [], 60_000);
+      cacheSet("screenshotSets:loc-1", [], 60_000);
+      cacheInvalidateAll();
+      expect(cacheGet("apps")).toBeNull();
+      expect(cacheGet("versions:app-1")).toBeNull();
+      expect(cacheGet("screenshotSets:loc-1")).toBeNull();
     });
   });
 

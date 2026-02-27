@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Images, CloudArrowUp, Plus, SpinnerGap, Image } from "@phosphor-icons/react";
+import {
+  Images,
+  CloudArrowUp,
+  Plus,
+  SpinnerGap,
+  X,
+  DotsSixVertical,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,12 +27,34 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import { useScreenshotSets } from "@/lib/hooks/use-screenshot-sets";
 import { localeName, LOCALE_NAMES } from "@/lib/asc/locale-names";
+import {
+  screenshotImageUrl,
+  displayTypeLabel,
+  sortDisplayTypes,
+  type AscScreenshot,
+} from "@/lib/asc/display-types";
 
 /** Sort locales: primary locale first, rest alphabetical by display name. */
 function sortLocales(codes: string[], primaryLocale: string): string[] {
@@ -36,24 +65,106 @@ function sortLocales(codes: string[], primaryLocale: string): string[] {
   });
 }
 
-const DISPLAY_TYPE_LABELS: Record<string, string> = {
-  APP_IPHONE_67: "iPhone 6.7\"",
-  APP_IPHONE_61: "iPhone 6.1\"",
-  APP_IPHONE_65: "iPhone 6.5\"",
-  APP_IPHONE_58: "iPhone 5.8\"",
-  APP_IPHONE_55: "iPhone 5.5\"",
-  APP_IPHONE_47: "iPhone 4.7\"",
-  APP_IPHONE_40: "iPhone 4\"",
-  APP_IPHONE_35: "iPhone 3.5\"",
-  APP_IPAD_PRO_3GEN_129: "iPad Pro 12.9\"",
-  APP_IPAD_PRO_3GEN_11: "iPad Pro 11\"",
-  APP_IPAD_PRO_129: "iPad Pro 12.9\" (2nd)",
-  APP_IPAD_105: "iPad 10.5\"",
-  APP_IPAD_97: "iPad 9.7\"",
-  APP_DESKTOP: "Mac",
-  APP_APPLE_TV: "Apple TV",
-  APP_APPLE_VISION_PRO: "Apple Vision Pro",
-};
+// ---------------------------------------------------------------------------
+// Sortable screenshot thumbnail
+// ---------------------------------------------------------------------------
+
+function SortableScreenshot({
+  screenshot,
+  readOnly,
+  onDelete,
+}: {
+  screenshot: AscScreenshot;
+  readOnly: boolean;
+  onDelete: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: screenshot.id, disabled: readOnly });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const isComplete =
+    screenshot.attributes.assetDeliveryState?.state === "COMPLETE";
+  const hasToken = !!screenshot.attributes.assetToken;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group relative shrink-0"
+    >
+      {/* Drag handle + thumbnail */}
+      <div
+        className="flex flex-col items-center gap-1.5 rounded-lg border bg-muted/30 p-2"
+        {...attributes}
+        {...listeners}
+      >
+        {!readOnly && (
+          <DotsSixVertical
+            size={14}
+            className="cursor-grab text-muted-foreground/40 group-hover:text-muted-foreground"
+          />
+        )}
+        {isComplete && hasToken ? (
+          <img
+            src={screenshotImageUrl(screenshot.attributes.assetToken!, 300)}
+            alt={screenshot.attributes.fileName}
+            className="h-[200px] w-auto rounded object-contain"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-[200px] w-[112px] items-center justify-center rounded bg-muted">
+            <SpinnerGap
+              size={24}
+              className="animate-spin text-muted-foreground/40"
+            />
+          </div>
+        )}
+        <p className="max-w-[120px] truncate text-xs text-muted-foreground">
+          {screenshot.attributes.fileName}
+        </p>
+      </div>
+
+      {/* Delete button */}
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={() => onDelete(screenshot.id)}
+          className="absolute -top-2 -right-2 hidden rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm hover:bg-destructive/90 group-hover:block"
+        >
+          <X size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Upload placeholder shown during upload
+// ---------------------------------------------------------------------------
+
+function UploadingPlaceholder() {
+  return (
+    <div className="flex h-[232px] w-[120px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20">
+      <SpinnerGap size={20} className="animate-spin text-muted-foreground" />
+      <span className="text-xs text-muted-foreground">Uploading…</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export default function ScreenshotsPage() {
   const { appId } = useParams<{ appId: string }>();
@@ -72,33 +183,143 @@ export default function ScreenshotsPage() {
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
-  const { localizations, loading: locLoading } = useLocalizations(appId, versionId);
+  const { localizations, loading: locLoading } = useLocalizations(
+    appId,
+    versionId,
+  );
   const primaryLocale = app?.primaryLocale ?? "";
 
   const [locales, setLocales] = useState<string[]>([]);
   const [selectedLocale, setSelectedLocale] = useState("");
   const [addLocaleOpen, setAddLocaleOpen] = useState(false);
 
-  // Reset locales when localizations change
+  // Start with only the primary locale
   useEffect(() => {
-    const sorted = sortLocales(
-      localizations.map((l) => l.attributes.locale),
-      primaryLocale,
-    );
-    setLocales(sorted);
-    setSelectedLocale(sorted[0] ?? "");
-  }, [localizations, primaryLocale]);
+    if (!primaryLocale) return;
+    setLocales((prev) => (prev.length > 0 ? prev : [primaryLocale]));
+    setSelectedLocale((prev) => prev || primaryLocale);
+  }, [primaryLocale]);
 
-  // Find the localization ID for the selected locale to fetch screenshots
   const selectedLocalization = localizations.find(
     (l) => l.attributes.locale === selectedLocale,
   );
   const localizationId = selectedLocalization?.id ?? "";
 
-  const { screenshotSets, loading: ssLoading } = useScreenshotSets(
-    appId,
-    versionId,
-    localizationId,
+  const {
+    screenshotSets: rawSets,
+    loading: ssLoading,
+    refresh,
+  } = useScreenshotSets(appId, versionId, localizationId);
+
+  // Sort sets by display type
+  const screenshotSets = useMemo(() => {
+    const sorted = sortDisplayTypes(
+      rawSets.map((s) => s.attributes.screenshotDisplayType),
+    );
+    return sorted.map(
+      (dt) => rawSets.find((s) => s.attributes.screenshotDisplayType === dt)!,
+    );
+  }, [rawSets]);
+
+  // ---- Upload state ----
+  const [uploadingSetIds, setUploadingSetIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  // ---- Drag sensors ----
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  // Build the API base path
+  const apiBase = `/api/apps/${appId}/versions/${versionId}/localizations/${localizationId}/screenshots`;
+
+  // ---- Handlers ----
+
+  const handleUpload = useCallback(
+    async (setId: string, file: File) => {
+      setUploadingSetIds((prev) => new Set(prev).add(setId));
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("setId", setId);
+
+        const res = await fetch(apiBase, { method: "POST", body: formData });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Upload failed");
+        }
+        toast.success("Screenshot uploaded");
+        await refresh();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to upload screenshot",
+        );
+      } finally {
+        setUploadingSetIds((prev) => {
+          const next = new Set(prev);
+          next.delete(setId);
+          return next;
+        });
+      }
+    },
+    [apiBase, refresh],
+  );
+
+  const handleDelete = useCallback(
+    async (screenshotId: string) => {
+      try {
+        const res = await fetch(`${apiBase}/${screenshotId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Delete failed");
+        }
+        toast.success("Screenshot deleted");
+        await refresh();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to delete screenshot",
+        );
+      }
+    },
+    [apiBase, refresh],
+  );
+
+  const handleDragEnd = useCallback(
+    async (setId: string, event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const set = screenshotSets.find((s) => s.id === setId);
+      if (!set) return;
+
+      const ids = set.screenshots.map((s) => s.id);
+      const oldIndex = ids.indexOf(active.id as string);
+      const newIndex = ids.indexOf(over.id as string);
+      const newOrder = arrayMove(ids, oldIndex, newIndex);
+
+      try {
+        const res = await fetch(`${apiBase}/reorder`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ setId, screenshotIds: newOrder }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Reorder failed");
+        }
+        await refresh();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to reorder screenshots",
+        );
+      }
+    },
+    [apiBase, refresh, screenshotSets],
   );
 
   function handleAddLocale(locale: string) {
@@ -108,8 +329,12 @@ export default function ScreenshotsPage() {
     toast.success(`Added ${localeName(locale)}`);
   }
 
+  // Only offer locales that have a version localization
+  const versionLocales = new Set(
+    localizations.map((l) => l.attributes.locale),
+  );
   const availableLocales = Object.entries(LOCALE_NAMES).filter(
-    ([code]) => !locales.includes(code)
+    ([code]) => !locales.includes(code) && versionLocales.has(code),
   );
 
   if (!app) {
@@ -184,28 +409,18 @@ export default function ScreenshotsPage() {
         </div>
       ) : ssLoading ? (
         <div className="flex items-center justify-center py-20">
-          <SpinnerGap size={24} className="animate-spin text-muted-foreground" />
+          <SpinnerGap
+            size={24}
+            className="animate-spin text-muted-foreground"
+          />
         </div>
       ) : screenshotSets.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
           <Images size={48} className="text-muted-foreground/50" />
           <h2 className="mt-4 text-lg font-medium">No screenshots</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Upload screenshots for each device type and locale. Drag to
-            reorder.
+            No screenshot sets have been created for this locale yet.
           </p>
-          {!readOnly && (
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() =>
-                toast.info("Screenshot upload not available in prototype")
-              }
-            >
-              <CloudArrowUp size={16} className="mr-2" />
-              Upload screenshots
-            </Button>
-          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -213,48 +428,101 @@ export default function ScreenshotsPage() {
             <Card key={set.id}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">
-                  {DISPLAY_TYPE_LABELS[set.attributes.screenshotDisplayType] ??
-                    set.attributes.screenshotDisplayType}
+                  {displayTypeLabel(set.attributes.screenshotDisplayType)}
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {set.screenshots.length} screenshot
+                    {set.screenshots.length !== 1 ? "s" : ""}
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {set.screenshots.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    No screenshots uploaded.
+                {set.screenshots.length === 0 && !uploadingSetIds.has(set.id) ? (
+                  /* Empty set – upload drop zone */
+                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
+                    <CloudArrowUp
+                      size={32}
+                      className="text-muted-foreground/40"
+                    />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No screenshots uploaded
+                    </p>
+                    {!readOnly && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() =>
+                          fileInputRefs.current.get(set.id)?.click()
+                        }
+                      >
+                        <Plus size={14} className="mr-1.5" />
+                        Add screenshot
+                      </Button>
+                    )}
                   </div>
                 ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-2">
-                    {set.screenshots.map((ss) => (
-                      <div
-                        key={ss.id}
-                        className="flex shrink-0 flex-col items-center gap-1.5 rounded-lg border bg-muted/30 p-3"
-                      >
-                        <Image size={32} className="text-muted-foreground/50" />
-                        <p className="max-w-[120px] truncate text-xs text-muted-foreground">
-                          {ss.attributes.fileName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {(ss.attributes.fileSize / 1024).toFixed(0)} KB
-                        </p>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => handleDragEnd(set.id, event)}
+                  >
+                    <SortableContext
+                      items={set.screenshots.map((s) => s.id)}
+                      strategy={horizontalListSortingStrategy}
+                    >
+                      <div className="flex gap-3 overflow-x-auto pb-2">
+                        {set.screenshots.map((ss) => (
+                          <SortableScreenshot
+                            key={ss.id}
+                            screenshot={ss}
+                            readOnly={readOnly}
+                            onDelete={handleDelete}
+                          />
+                        ))}
+
+                        {uploadingSetIds.has(set.id) && (
+                          <UploadingPlaceholder />
+                        )}
+
+                        {/* Add button as last slot */}
+                        {!readOnly && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              fileInputRefs.current.get(set.id)?.click()
+                            }
+                            className="flex h-[232px] w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed text-muted-foreground hover:border-foreground/30 hover:text-foreground/70"
+                          >
+                            <Plus size={20} />
+                            <span className="text-xs">Add</span>
+                          </button>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
+                )}
+
+                {/* Hidden file input for this set */}
+                {!readOnly && (
+                  <input
+                    ref={(el) => {
+                      if (el) fileInputRefs.current.set(set.id, el);
+                    }}
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleUpload(set.id, file);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
                 )}
               </CardContent>
             </Card>
           ))}
-
-          {!readOnly && (
-            <Button
-              variant="outline"
-              onClick={() =>
-                toast.info("Screenshot upload not available in prototype")
-              }
-            >
-              <CloudArrowUp size={16} className="mr-2" />
-              Upload screenshots
-            </Button>
-          )}
         </div>
       )}
     </div>

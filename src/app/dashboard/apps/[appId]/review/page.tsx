@@ -83,7 +83,7 @@ export default function AppReviewPage() {
           <CardContent className="px-5 py-4">
             <Textarea
               placeholder="Provide any additional information the App Review team might need..."
-              className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none font-mono text-sm min-h-0"
+              className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -115,7 +115,7 @@ export default function AppReviewPage() {
               <label className="text-sm text-muted-foreground">Username</label>
               <Input
                 placeholder="demo@example.com"
-                className="font-mono text-sm"
+                className="text-sm"
                 value={demoName}
                 onChange={(e) => setDemoName(e.target.value)}
               />
@@ -125,7 +125,7 @@ export default function AppReviewPage() {
               <Input
                 type="password"
                 placeholder="Password"
-                className="font-mono text-sm"
+                className="text-sm"
                 value={demoPassword}
                 onChange={(e) => setDemoPassword(e.target.value)}
               />
@@ -160,7 +160,7 @@ export default function AppReviewPage() {
           <div className="space-y-2">
             <label className="text-sm text-muted-foreground">Phone</label>
             <Input
-              className="font-mono text-sm"
+              className="text-sm"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
@@ -169,7 +169,7 @@ export default function AppReviewPage() {
             <label className="text-sm text-muted-foreground">Email</label>
             <Input
               type="email"
-              className="font-mono text-sm"
+              className="text-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />

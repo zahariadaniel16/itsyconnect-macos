@@ -1,8 +1,25 @@
 "use client";
 
+import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -10,12 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { SpinnerGap } from "@phosphor-icons/react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, SpinnerGap } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
+import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
+import { localeName, LOCALE_NAMES } from "@/lib/asc/locale-names";
 
 const AGE_RATING_LABELS: Record<string, string> = {
   FOUR_PLUS: "4+",
@@ -23,6 +42,46 @@ const AGE_RATING_LABELS: Record<string, string> = {
   TWELVE_PLUS: "12+",
   SEVENTEEN_PLUS: "17+",
 };
+
+interface AppInfoLocaleFields {
+  name: string;
+  subtitle: string;
+  privacyPolicyUrl: string;
+  privacyChoicesUrl: string;
+}
+
+function emptyLocaleFields(): AppInfoLocaleFields {
+  return {
+    name: "",
+    subtitle: "",
+    privacyPolicyUrl: "",
+    privacyChoicesUrl: "",
+  };
+}
+
+/** Sort locales: primary locale first, rest alphabetical by display name. */
+function sortLocales(codes: string[], primaryLocale: string): string[] {
+  return [...codes].sort((a, b) => {
+    if (a === primaryLocale) return -1;
+    if (b === primaryLocale) return 1;
+    return localeName(a).localeCompare(localeName(b));
+  });
+}
+
+function buildLocaleData(
+  localizations: AscAppInfoLocalization[],
+): Record<string, AppInfoLocaleFields> {
+  const data: Record<string, AppInfoLocaleFields> = {};
+  for (const loc of localizations) {
+    data[loc.attributes.locale] = {
+      name: loc.attributes.name ?? "",
+      subtitle: loc.attributes.subtitle ?? "",
+      privacyPolicyUrl: loc.attributes.privacyPolicyUrl ?? "",
+      privacyChoicesUrl: loc.attributes.privacyChoicesUrl ?? "",
+    };
+  }
+  return data;
+}
 
 export default function AppDetailsPage() {
   const { appId } = useParams<{ appId: string }>();
@@ -32,12 +91,52 @@ export default function AppDetailsPage() {
   const appInfo = pickAppInfo(appInfos);
   const appInfoId = appInfo?.id ?? "";
 
-  const { localizations, loading: locLoading } = useAppInfoLocalizations(appId, appInfoId);
+  const { localizations, loading: locLoading } =
+    useAppInfoLocalizations(appId, appInfoId);
 
-  // Find primary locale localization
-  const primaryLoc = localizations.find(
-    (l) => l.attributes.locale === app?.primaryLocale,
-  ) ?? localizations[0];
+  const primaryLocale = app?.primaryLocale ?? "";
+
+  const [localeData, setLocaleData] = useState<
+    Record<string, AppInfoLocaleFields>
+  >({});
+  const [locales, setLocales] = useState<string[]>([]);
+  const [selectedLocale, setSelectedLocale] = useState("");
+  const [addLocaleOpen, setAddLocaleOpen] = useState(false);
+
+  const current = localeData[selectedLocale] ?? emptyLocaleFields();
+
+  useEffect(() => {
+    const data = buildLocaleData(localizations);
+    setLocaleData(data);
+    const sorted = sortLocales(Object.keys(data), primaryLocale);
+    setLocales(sorted);
+    setSelectedLocale(sorted[0] ?? "");
+  }, [localizations, primaryLocale]);
+
+  const updateField = useCallback(
+    (field: keyof AppInfoLocaleFields, value: string) => {
+      setLocaleData((prev) => ({
+        ...prev,
+        [selectedLocale]: { ...prev[selectedLocale], [field]: value },
+      }));
+    },
+    [selectedLocale],
+  );
+
+  function handleAddLocale(locale: string) {
+    setLocaleData((prev) => {
+      const next = { ...prev, [locale]: emptyLocaleFields() };
+      setLocales(sortLocales(Object.keys(next), primaryLocale));
+      return next;
+    });
+    setSelectedLocale(locale);
+    setAddLocaleOpen(false);
+    toast.success(`Added ${localeName(locale)}`);
+  }
+
+  const availableLocales = Object.entries(LOCALE_NAMES).filter(
+    ([code]) => !localeData[code],
+  );
 
   if (!app) {
     return (
@@ -79,7 +178,10 @@ export default function AppDetailsPage() {
           </SelectTrigger>
           <SelectContent>
             {localizations.map((loc) => (
-              <SelectItem key={loc.attributes.locale} value={loc.attributes.locale}>
+              <SelectItem
+                key={loc.attributes.locale}
+                value={loc.attributes.locale}
+              >
                 {loc.attributes.locale}
               </SelectItem>
             ))}
@@ -91,6 +193,116 @@ export default function AppDetailsPage() {
           </SelectContent>
         </Select>
       </section>
+
+      {/* Locale tabs + add locale */}
+      <div className="flex flex-wrap items-center gap-2">
+        {locales.length > 0 && (
+          <Tabs value={selectedLocale} onValueChange={setSelectedLocale}>
+            <TabsList className="!h-auto flex-wrap justify-start">
+              {locales.map((locale) => (
+                <TabsTrigger key={locale} value={locale} className="flex-none">
+                  {localeName(locale)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+
+        {availableLocales.length > 0 && (
+          <Popover open={addLocaleOpen} onOpenChange={setAddLocaleOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                <Plus size={14} />
+                Add locale
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search locales..." />
+                <CommandList>
+                  <CommandEmpty>No locales found.</CommandEmpty>
+                  <CommandGroup>
+                    {availableLocales.map(([code, name]) => (
+                      <CommandItem
+                        key={code}
+                        value={`${name} ${code}`}
+                        onSelect={() => handleAddLocale(code)}
+                      >
+                        <span>{name}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {code}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+
+      {locales.length > 0 && (
+        <>
+          {/* Name & subtitle */}
+          <section className="space-y-2">
+            <h3 className="section-title">Name &amp; subtitle</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">Name</label>
+                <Input
+                  value={current.name}
+                  onChange={(e) => updateField("name", e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">
+                  Subtitle
+                </label>
+                <Input
+                  value={current.subtitle}
+                  onChange={(e) => updateField("subtitle", e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* URLs */}
+          <section className="space-y-2">
+            <h3 className="section-title">URLs</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">
+                  Privacy policy URL
+                </label>
+                <Input
+                  value={current.privacyPolicyUrl}
+                  onChange={(e) =>
+                    updateField("privacyPolicyUrl", e.target.value)
+                  }
+                  placeholder="https://..."
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">
+                  Privacy choices URL
+                </label>
+                <Input
+                  value={current.privacyChoicesUrl}
+                  onChange={(e) =>
+                    updateField("privacyChoicesUrl", e.target.value)
+                  }
+                  placeholder="https://..."
+                  className="text-sm"
+                />
+              </div>
+            </div>
+          </section>
+        </>
+      )}
 
       {/* Categories */}
       <section className="space-y-2">
@@ -118,37 +330,12 @@ export default function AppDetailsPage() {
           <Card className="w-32">
             <CardContent className="flex flex-col items-center justify-center py-4">
               <span className="text-2xl font-bold">
-                {ageRating ? (AGE_RATING_LABELS[ageRating] ?? ageRating) : "–"}
+                {ageRating
+                  ? (AGE_RATING_LABELS[ageRating] ?? ageRating)
+                  : "–"}
               </span>
             </CardContent>
           </Card>
-        </div>
-      </section>
-
-      {/* URLs */}
-      <section className="space-y-2">
-        <h3 className="section-title">URLs</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              Privacy policy URL
-            </label>
-            <Input
-              defaultValue={primaryLoc?.attributes.privacyPolicyUrl ?? ""}
-              placeholder="https://..."
-              className="font-mono text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              Privacy choices URL
-            </label>
-            <Input
-              defaultValue={primaryLoc?.attributes.privacyChoicesUrl ?? ""}
-              placeholder="https://..."
-              className="font-mono text-sm"
-            />
-          </div>
         </div>
       </section>
 
