@@ -66,11 +66,13 @@ import { useScreenshotOperations } from "@/lib/hooks/use-screenshot-operations";
 function SortableScreenshot({
   screenshot,
   readOnly,
+  deleting,
   onDelete,
   onPreview,
 }: {
   screenshot: AscScreenshot;
   readOnly: boolean;
+  deleting: boolean;
   onDelete: (id: string) => void;
   onPreview: () => void;
 }) {
@@ -144,13 +146,19 @@ function SortableScreenshot({
 
       {/* Delete button */}
       {!readOnly && (
-        <button
-          type="button"
-          onClick={() => onDelete(screenshot.id)}
-          className="absolute top-1 right-1 hidden rounded-full bg-destructive p-1 text-white shadow-sm hover:bg-destructive/90 group-hover:block"
-        >
-          <X size={12} />
-        </button>
+        deleting ? (
+          <div className="absolute top-1 right-1 rounded-full bg-destructive p-1 text-white shadow-sm">
+            <Spinner className="size-3" />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onDelete(screenshot.id)}
+            className="absolute top-1 right-1 hidden rounded-full bg-destructive p-1 text-white shadow-sm hover:bg-destructive/90 group-hover:block"
+          >
+            <X size={12} />
+          </button>
+        )
       )}
     </div>
   );
@@ -177,6 +185,7 @@ function ScreenshotSetCard({
   set,
   readOnly,
   uploading,
+  deletingIds,
   sensors,
   onUpload,
   onDelete,
@@ -186,6 +195,7 @@ function ScreenshotSetCard({
   set: AscScreenshotSet;
   readOnly: boolean;
   uploading: boolean;
+  deletingIds: Set<string>;
   sensors: ReturnType<typeof useSensors>;
   onUpload: (setId: string, file: File) => void;
   onDelete: (screenshotId: string) => void;
@@ -292,6 +302,7 @@ function ScreenshotSetCard({
                     key={ss.id}
                     screenshot={ss}
                     readOnly={readOnly}
+                    deleting={deletingIds.has(ss.id)}
                     onDelete={onDelete}
                     onPreview={() => {
                       const idx = previewableScreenshots.findIndex(
@@ -628,6 +639,7 @@ export default function ScreenshotsPage() {
 
   const {
     uploadingSetIds,
+    deletingIds,
     creatingVariant,
     handleUpload,
     handleDeleteScreenshot,
@@ -803,6 +815,7 @@ export default function ScreenshotsPage() {
                 set={set}
                 readOnly={readOnly}
                 uploading={uploadingSetIds.has(set.id)}
+                deletingIds={deletingIds}
                 sensors={sensors}
                 onUpload={handleUpload}
                 onDelete={handleDeleteScreenshot}

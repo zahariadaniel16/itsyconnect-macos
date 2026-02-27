@@ -23,6 +23,7 @@ export function useScreenshotOperations({
   const [uploadingSetIds, setUploadingSetIds] = useState<Set<string>>(
     new Set(),
   );
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [creatingVariant, setCreatingVariant] = useState(false);
 
   const handleUpload = useCallback(
@@ -53,6 +54,8 @@ export function useScreenshotOperations({
 
   const handleDeleteScreenshot = useCallback(
     async (screenshotId: string) => {
+      if (deletingIds.has(screenshotId)) return;
+      setDeletingIds((prev) => new Set(prev).add(screenshotId));
       try {
         await apiFetch(`${apiBase}/${screenshotId}`, { method: "DELETE" });
         toast.success("Screenshot deleted");
@@ -61,9 +64,15 @@ export function useScreenshotOperations({
         toast.error(
           err instanceof Error ? err.message : "Failed to delete screenshot",
         );
+      } finally {
+        setDeletingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(screenshotId);
+          return next;
+        });
       }
     },
-    [apiBase, refresh],
+    [apiBase, deletingIds, refresh],
   );
 
   const handleDragEnd = useCallback(
@@ -139,6 +148,7 @@ export function useScreenshotOperations({
 
   return {
     uploadingSetIds,
+    deletingIds,
     creatingVariant,
     handleUpload,
     handleDeleteScreenshot,
