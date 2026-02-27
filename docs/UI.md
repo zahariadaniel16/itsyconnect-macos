@@ -124,6 +124,43 @@ Version-scoped pages (store listing, screenshots, app review) show a `<HeaderVer
 
 The selected version is stored in the URL via `?version=` search param. Pages read it with `resolveVersion(appId, searchParams.get("version"))` from `mock-data.ts` instead of local state. When the header picker changes the version, the URL updates and the page re-renders.
 
+## Electron drag regions
+
+The app runs in an Electron window with `titleBarStyle: "hiddenInset"` – the native title bar is hidden and the traffic lights are inset into the content area. CSS classes `.drag` and `.no-drag` (defined in `globals.css`) map to `-webkit-app-region: drag/no-drag`.
+
+### Rules
+
+1. **Every screen must have a drag region** covering the top ~64px of the window so users can drag the window.
+2. **Use `.drag` explicitly** on the drag container AND its inner wrapper div. Do not rely on CSS inheritance – always set `.drag` on every element in the chain.
+3. **Use `.no-drag` on interactive elements only** – buttons, selects, links, inputs. Non-interactive text (breadcrumbs, labels) should inherit `.drag` from the parent.
+4. **Sidebar header** uses `drag pt-8` to provide drag space above the app switcher (room for the traffic lights). The app switcher is wrapped in `no-drag`.
+
+### Dashboard header pattern
+
+```tsx
+<header className="drag flex h-16 shrink-0 items-center ...">
+  <div className="drag flex flex-1 items-center gap-2 px-4">
+    <div className="no-drag flex items-center gap-2">
+      {/* breadcrumbs, pickers – interactive */}
+    </div>
+    <div className="no-drag ml-auto flex items-center gap-2">
+      {/* action buttons, theme toggle – interactive */}
+    </div>
+  </div>
+</header>
+```
+
+### Full-page screen pattern (setup, onboarding)
+
+For screens without a sidebar, use a fixed overlay:
+
+```tsx
+<div className="drag fixed inset-x-0 top-0 h-16" />
+<div className="no-drag fixed top-4 right-4">
+  <ThemeToggle />
+</div>
+```
+
 ## Colours
 
 - Status dots use direct Tailwind colours: green-500, blue-500, yellow-500, amber-500, red-500

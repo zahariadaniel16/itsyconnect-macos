@@ -1,6 +1,6 @@
 # Itsyship – LLM build guide
 
-Self-hosted App Store Connect dashboard. Next.js 15, TypeScript, Tailwind v4, shadcn/ui, SQLite.
+Self-hosted App Store Connect dashboard. Next.js 16, TypeScript, Tailwind v4, shadcn/ui, SQLite.
 
 ## Required reading
 
@@ -29,6 +29,12 @@ Before writing any code, read these docs:
 7. **Research before guessing** – web search for solutions before guessing at fixes, especially for platform-specific layout/rendering issues. Facts over trial-and-error.
 8. **Revert failed changes** – if a code change doesn't fix the problem, remove it completely before trying the next approach. Never leave dead or ineffective code behind.
 9. **Clean up failed fixes immediately** – if a code change aimed at fixing something has no effect, remove it completely before trying the next approach. Never accumulate layers of ineffective code.
+
+## Routing and request interception
+
+- **`src/proxy.ts`** handles all request interception (setup redirect, auth guards, etc.). This is Next.js 16's replacement for `middleware.ts` – never create a `middleware.ts` file.
+- The proxy checks `/api/health` on root (`/`) to determine if setup is needed, then redirects to `/setup` or `/dashboard`.
+- Electron loads `/` so the proxy can handle initial routing. Never hardcode `/dashboard` as the Electron entry URL.
 
 ## Style
 

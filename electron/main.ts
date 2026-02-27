@@ -174,7 +174,7 @@ function createWindow(port: number): void {
     },
   });
 
-  mainWindow.loadURL(`http://127.0.0.1:${port}/dashboard`);
+  mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
   ipcMain.once("app-ready", () => {
     mainWindow?.show();
