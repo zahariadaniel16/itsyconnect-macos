@@ -393,6 +393,10 @@ export default function StoreListingPage() {
     );
   }
 
+  const localeTag = selectedLocale && selectedLocale !== primaryLocale
+    ? <span className="ml-1.5 inline-flex translate-y-[-1px] rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-normal text-muted-foreground">{selectedLocale}</span>
+    : null;
+
   return (
     <div className="space-y-6">
         {/* Read-only banner */}
@@ -426,7 +430,7 @@ export default function StoreListingPage() {
           <>
             {/* What's new */}
             <section className="space-y-2">
-              <h3 className="section-title">What&apos;s new</h3>
+              <h3 className="section-title">What&apos;s new{localeTag}</h3>
               <Card className="gap-0 py-0">
                 <CardContent className="px-5 py-4">
                   <Textarea
@@ -448,7 +452,7 @@ export default function StoreListingPage() {
 
             {/* Promotional text */}
             <section className="space-y-2">
-              <h3 className="section-title">Promotional text</h3>
+              <h3 className="section-title">Promotional text{localeTag}</h3>
               <Card className="gap-0 py-0">
                 <CardContent className="px-5 py-4">
                   <Textarea
@@ -472,7 +476,7 @@ export default function StoreListingPage() {
 
             {/* Description */}
             <section className="space-y-2">
-              <h3 className="section-title">Description</h3>
+              <h3 className="section-title">Description{localeTag}</h3>
               <Card className="gap-0 py-0">
                 <CardContent className="px-5 py-4">
                   <Textarea
@@ -494,7 +498,7 @@ export default function StoreListingPage() {
 
             {/* Keywords */}
             <section className="space-y-2">
-              <h3 className="section-title">Keywords</h3>
+              <h3 className="section-title">Keywords{localeTag}</h3>
               <Card className="gap-0 py-0">
                 <CardContent className="px-5 py-4">
                   <Input
@@ -520,7 +524,7 @@ export default function StoreListingPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm text-muted-foreground">
-                    Support URL
+                    Support URL{localeTag}
                   </label>
                   <Input
                     dir="ltr"
@@ -533,7 +537,7 @@ export default function StoreListingPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-muted-foreground">
-                    Marketing URL
+                    Marketing URL{localeTag}
                   </label>
                   <Input
                     dir="ltr"

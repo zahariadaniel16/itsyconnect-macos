@@ -399,6 +399,10 @@ export default function AppDetailsPage() {
 
   const ageRating = appInfo?.attributes.appStoreAgeRating;
 
+  const localeTag = selectedLocale && selectedLocale !== primaryLocale
+    ? <span className="ml-1.5 inline-flex translate-y-[-1px] rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-normal text-muted-foreground">{selectedLocale}</span>
+    : null;
+
   return (
     <div className="space-y-8">
       {/* Identifiers (read-only) */}
@@ -458,7 +462,7 @@ export default function AppDetailsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm text-muted-foreground">Name</label>
+                  <label className="text-sm text-muted-foreground">Name{localeTag}</label>
                   <CharCount value={current.name} limit={FIELD_LIMITS.name} />
                 </div>
                 <Input
@@ -469,7 +473,7 @@ export default function AppDetailsPage() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm text-muted-foreground">Subtitle</label>
+                  <label className="text-sm text-muted-foreground">Subtitle{localeTag}</label>
                   <CharCount value={current.subtitle} limit={FIELD_LIMITS.subtitle} />
                 </div>
                 <Input
@@ -487,7 +491,7 @@ export default function AppDetailsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">
-                  Privacy policy URL
+                  Privacy policy URL{localeTag}
                 </label>
                 <Input
                   dir="ltr"
@@ -501,7 +505,7 @@ export default function AppDetailsPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">
-                  Privacy choices URL
+                  Privacy choices URL{localeTag}
                 </label>
                 <Input
                   dir="ltr"
