@@ -204,6 +204,8 @@ function ScreenshotSetCard({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
   const displayType = set.attributes.screenshotDisplayType;
   const size = DISPLAY_TYPE_SIZES[displayType];
 
@@ -258,14 +260,49 @@ function ScreenshotSetCard({
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent
+        onDragEnter={(e) => {
+          if (readOnly) return;
+          e.preventDefault();
+          dragCounter.current++;
+          setDragOver(true);
+        }}
+        onDragOver={(e) => {
+          if (readOnly) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={() => {
+          dragCounter.current--;
+          if (dragCounter.current <= 0) {
+            dragCounter.current = 0;
+            setDragOver(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          dragCounter.current = 0;
+          setDragOver(false);
+          if (readOnly) return;
+          const files = Array.from(e.dataTransfer.files).filter((f) =>
+            f.type === "image/png" || f.type === "image/jpeg",
+          );
+          for (const file of files) {
+            onUpload(set.id, file);
+          }
+        }}
+        className={dragOver ? "ring-2 ring-primary ring-inset rounded-lg" : ""}
+      >
         {set.screenshots.length === 0 && !uploading ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
-            <CloudArrowUp size={32} className="text-muted-foreground/40" />
+          <div className={cn(
+            "flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center",
+            dragOver && "border-primary bg-primary/5",
+          )}>
+            <CloudArrowUp size={32} className={dragOver ? "text-primary" : "text-muted-foreground/40"} />
             <p className="mt-2 text-sm text-muted-foreground">
-              No screenshots uploaded
+              {dragOver ? "Drop to upload" : "No screenshots uploaded"}
             </p>
-            {!readOnly && (
+            {!readOnly && !dragOver && (
               <div className="mt-3 flex items-center gap-2">
                 <Button
                   variant="outline"
