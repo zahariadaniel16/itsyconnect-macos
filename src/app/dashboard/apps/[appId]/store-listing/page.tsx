@@ -262,50 +262,6 @@ export default function StoreListingPage() {
           </div>
         ) : (
           <>
-            {/* Description */}
-            <section className="space-y-2">
-              <h3 className="section-title">Description</h3>
-              <Card className="gap-0 py-0">
-                <CardContent className="px-5 py-4">
-                  <Textarea
-                    value={current.description}
-                    onChange={(e) => updateField("description", e.target.value)}
-                    readOnly={readOnly}
-                    placeholder="Describe your app..."
-                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
-                  />
-                </CardContent>
-                <div className="flex items-center justify-end border-t px-3 py-1.5">
-                  <CharCount
-                    value={current.description}
-                    limit={FIELD_LIMITS.description}
-                  />
-                </div>
-              </Card>
-            </section>
-
-            {/* Keywords */}
-            <section className="space-y-2">
-              <h3 className="section-title">Keywords</h3>
-              <Card className="gap-0 py-0">
-                <CardContent className="px-5 py-4">
-                  <Input
-                    value={current.keywords}
-                    onChange={(e) => updateField("keywords", e.target.value)}
-                    readOnly={readOnly}
-                    placeholder="keyword1,keyword2,keyword3"
-                    className="border-0 p-0 shadow-none focus-visible:ring-0 text-sm h-auto"
-                  />
-                </CardContent>
-                <div className="flex items-center justify-end border-t px-3 py-1.5">
-                  <CharCount
-                    value={current.keywords}
-                    limit={FIELD_LIMITS.keywords}
-                  />
-                </div>
-              </Card>
-            </section>
-
             {/* What's new */}
             <section className="space-y-2">
               <h3 className="section-title">What&apos;s new</h3>
@@ -347,6 +303,50 @@ export default function StoreListingPage() {
                   <CharCount
                     value={current.promotionalText}
                     limit={FIELD_LIMITS.promotionalText}
+                  />
+                </div>
+              </Card>
+            </section>
+
+            {/* Description */}
+            <section className="space-y-2">
+              <h3 className="section-title">Description</h3>
+              <Card className="gap-0 py-0">
+                <CardContent className="px-5 py-4">
+                  <Textarea
+                    value={current.description}
+                    onChange={(e) => updateField("description", e.target.value)}
+                    readOnly={readOnly}
+                    placeholder="Describe your app..."
+                    className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
+                  />
+                </CardContent>
+                <div className="flex items-center justify-end border-t px-3 py-1.5">
+                  <CharCount
+                    value={current.description}
+                    limit={FIELD_LIMITS.description}
+                  />
+                </div>
+              </Card>
+            </section>
+
+            {/* Keywords */}
+            <section className="space-y-2">
+              <h3 className="section-title">Keywords</h3>
+              <Card className="gap-0 py-0">
+                <CardContent className="px-5 py-4">
+                  <Input
+                    value={current.keywords}
+                    onChange={(e) => updateField("keywords", e.target.value)}
+                    readOnly={readOnly}
+                    placeholder="keyword1,keyword2,keyword3"
+                    className="border-0 p-0 shadow-none focus-visible:ring-0 text-sm h-auto"
+                  />
+                </CardContent>
+                <div className="flex items-center justify-end border-t px-3 py-1.5">
+                  <CharCount
+                    value={current.keywords}
+                    limit={FIELD_LIMITS.keywords}
                   />
                 </div>
               </Card>
