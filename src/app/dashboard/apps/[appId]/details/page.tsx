@@ -24,6 +24,8 @@ import { localeName, sortLocales } from "@/lib/asc/locale-names";
 import { useSectionLocales } from "@/lib/section-locales-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 
+type ContentRights = "DOES_NOT_USE_THIRD_PARTY_CONTENT" | "USES_THIRD_PARTY_CONTENT";
+
 const AGE_RATING_LABELS: Record<string, string> = {
   FOUR_PLUS: "4+",
   NINE_PLUS: "9+",
@@ -72,7 +74,7 @@ export default function AppDetailsPage() {
   const appInfo = pickAppInfo(appInfos);
   const appInfoId = appInfo?.id ?? "";
 
-  const { localizations, loading: locLoading, refresh: refreshLocalizations } =
+  const { localizations, loading: locLoading } =
     useAppInfoLocalizations(appId, appInfoId);
 
   const primaryLocale = app?.primaryLocale ?? "";
@@ -83,6 +85,12 @@ export default function AppDetailsPage() {
   const [locales, setLocales] = useState<string[]>([]);
   const [selectedLocale, setSelectedLocale] = useState(
     () => searchParams.get("locale") ?? "",
+  );
+  const [contentRights, setContentRights] = useState<ContentRights>(
+    (app?.contentRightsDeclaration as ContentRights) ?? "DOES_NOT_USE_THIRD_PARTY_CONTENT",
+  );
+  const contentRightsOriginalRef = useRef<ContentRights>(
+    (app?.contentRightsDeclaration as ContentRights) ?? "DOES_NOT_USE_THIRD_PARTY_CONTENT",
   );
 
   const current = localeData[selectedLocale] ?? emptyLocaleFields();
@@ -126,6 +134,15 @@ export default function AppDetailsPage() {
     originalLocaleIdsRef.current = ids;
   }, [localizations, primaryLocale, setDirty, searchParams]);
 
+  // Sync content rights when app data loads
+  useEffect(() => {
+    if (app?.contentRightsDeclaration) {
+      const value = app.contentRightsDeclaration as ContentRights;
+      setContentRights(value);
+      contentRightsOriginalRef.current = value;
+    }
+  }, [app?.contentRightsDeclaration]);
+
   // Report locales to cross-section context
   useEffect(() => {
     reportLocales(locales);
@@ -134,34 +151,63 @@ export default function AppDetailsPage() {
   // Register save handler for the header Save button
   useEffect(() => {
     registerSave(async () => {
-      const res = await fetch(
-        `/api/apps/${appId}/info/${appInfoId}/localizations`,
-        {
+      const promises: Promise<void>[] = [];
+
+      // Save localizations
+      promises.push(
+        fetch(`/api/apps/${appId}/info/${appInfoId}/localizations`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             locales: localeData,
             originalLocaleIds: originalLocaleIdsRef.current,
           }),
-        },
+        }).then(async (res) => {
+          const data = await res.json();
+          if (!res.ok && !data.errors) throw new Error(data.error ?? "Save failed");
+          if (data.errors?.length > 0) {
+            toast.warning(`Saved with ${data.errors.length} error(s)`);
+          }
+        }),
       );
 
-      const data = await res.json();
+      // Save content rights if changed
+      if (contentRights !== contentRightsOriginalRef.current) {
+        promises.push(
+          fetch(`/api/apps/${appId}/attributes`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contentRightsDeclaration: contentRights }),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error ?? "Failed to save content rights");
+            }
+            contentRightsOriginalRef.current = contentRights;
+          }),
+        );
+      }
 
-      if (!res.ok && !data.errors) {
-        toast.error(data.error ?? "Save failed");
+      try {
+        await Promise.all(promises);
+        toast.success("App details saved");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Save failed");
         return;
       }
 
-      if (data.errors?.length > 0) {
-        toast.warning(`Saved with ${data.errors.length} error(s)`);
-      } else {
-        toast.success("App details saved");
+      // Update original snapshot so subsequent saves diff correctly
+      const ids: Record<string, string> = { ...originalLocaleIdsRef.current };
+      for (const locale of Object.keys(localeData)) {
+        if (!ids[locale]) ids[locale] = locale; // placeholder for newly created
       }
-
-      await refreshLocalizations();
+      for (const locale of Object.keys(ids)) {
+        if (!localeData[locale]) delete ids[locale]; // removed locales
+      }
+      originalLocaleIdsRef.current = ids;
+      setDirty(false);
     });
-  }, [appId, appInfoId, localeData, registerSave, refreshLocalizations]);
+  }, [appId, appInfoId, localeData, contentRights, registerSave, setDirty]);
 
   const updateField = useCallback(
     (field: keyof AppInfoLocaleFields, value: string) => {
@@ -403,15 +449,21 @@ export default function AppDetailsPage() {
       {/* Content rights */}
       <section className="space-y-2 pb-8">
         <h3 className="section-title">Content rights</h3>
-        <RadioGroup defaultValue="none">
+        <RadioGroup
+          value={contentRights}
+          onValueChange={(value) => {
+            setContentRights(value as ContentRights);
+            setDirty(true);
+          }}
+        >
           <div className="flex items-center gap-2">
-            <RadioGroupItem value="none" id="cr-none" />
+            <RadioGroupItem value="DOES_NOT_USE_THIRD_PARTY_CONTENT" id="cr-none" />
             <Label htmlFor="cr-none" className="text-sm font-normal">
               Does not use third-party content
             </Label>
           </div>
           <div className="flex items-center gap-2">
-            <RadioGroupItem value="has-rights" id="cr-has-rights" />
+            <RadioGroupItem value="USES_THIRD_PARTY_CONTENT" id="cr-has-rights" />
             <Label htmlFor="cr-has-rights" className="text-sm font-normal">
               Contains third-party content and I have the necessary rights
             </Label>

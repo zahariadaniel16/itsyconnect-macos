@@ -129,7 +129,7 @@ export default function BuildDetailPage() {
               className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none font-mono text-sm min-h-0"
             />
           </CardContent>
-          <div className="flex items-center justify-end border-t px-3 py-1.5">
+          <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
             <CharCount value={whatsNew} limit={4000} />
           </div>
         </Card>

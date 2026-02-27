@@ -81,7 +81,7 @@ export default function StoreListingPage() {
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
-  const { localizations, loading: locLoading, refresh: refreshLocalizations } = useLocalizations(appId, versionId);
+  const { localizations, loading: locLoading } = useLocalizations(appId, versionId);
 
   const primaryLocale = app?.primaryLocale ?? "";
 
@@ -165,13 +165,23 @@ export default function StoreListingPage() {
 
       if (data.errors?.length > 0) {
         toast.warning(`Saved with ${data.errors.length} error(s)`);
-      } else {
-        toast.success("Store listing saved");
+        return;
       }
 
-      await refreshLocalizations();
+      toast.success("Store listing saved");
+
+      // Update original snapshot so subsequent saves diff correctly
+      const ids = { ...originalLocaleIdsRef.current };
+      for (const locale of Object.keys(localeData)) {
+        if (!ids[locale]) ids[locale] = locale;
+      }
+      for (const locale of Object.keys(ids)) {
+        if (!localeData[locale]) delete ids[locale];
+      }
+      originalLocaleIdsRef.current = ids;
+      setDirty(false);
     });
-  }, [appId, versionId, localeData, registerSave, refreshLocalizations]);
+  }, [appId, versionId, localeData, registerSave, setDirty]);
 
   const updateField = useCallback(
     (field: keyof LocaleFields, value: string) => {
@@ -337,7 +347,7 @@ export default function StoreListingPage() {
                     className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
                   />
                 </CardContent>
-                <div className="flex items-center justify-end border-t px-3 py-1.5">
+                <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
                   <CharCount
                     value={current.whatsNew}
                     limit={FIELD_LIMITS.whatsNew}
@@ -361,7 +371,7 @@ export default function StoreListingPage() {
                     className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
                   />
                 </CardContent>
-                <div className="flex items-center justify-end border-t px-3 py-1.5">
+                <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
                   <CharCount
                     value={current.promotionalText}
                     limit={FIELD_LIMITS.promotionalText}
@@ -383,7 +393,7 @@ export default function StoreListingPage() {
                     className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0"
                   />
                 </CardContent>
-                <div className="flex items-center justify-end border-t px-3 py-1.5">
+                <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
                   <CharCount
                     value={current.description}
                     limit={FIELD_LIMITS.description}
@@ -405,7 +415,7 @@ export default function StoreListingPage() {
                     className="border-0 p-0 shadow-none focus-visible:ring-0 text-sm h-auto"
                   />
                 </CardContent>
-                <div className="flex items-center justify-end border-t px-3 py-1.5">
+                <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
                   <CharCount
                     value={current.keywords}
                     limit={FIELD_LIMITS.keywords}

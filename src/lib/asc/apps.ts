@@ -10,6 +10,7 @@ export interface AscApp {
     bundleId: string;
     sku: string;
     primaryLocale: string;
+    contentRightsDeclaration: string | null;
     iconUrl: string | null;
   };
 }
@@ -22,6 +23,7 @@ interface AscAppsResponse {
       bundleId: string;
       sku: string;
       primaryLocale: string;
+      contentRightsDeclaration: string | null;
     };
   }>;
 }
@@ -82,7 +84,7 @@ export async function listApps(forceRefresh = false): Promise<AscApp[]> {
   }
 
   const response = await ascFetch<AscAppsResponse>(
-    "/v1/apps?fields[apps]=name,bundleId,sku,primaryLocale&limit=200",
+    "/v1/apps?fields[apps]=name,bundleId,sku,primaryLocale,contentRightsDeclaration&limit=200",
   );
 
   const iconUrls = await fetchBuildIconUrls(response.data.map((a) => a.id));
@@ -97,4 +99,23 @@ export async function listApps(forceRefresh = false): Promise<AscApp[]> {
 
   cacheSet("apps", apps, APPS_TTL);
   return apps;
+}
+
+export async function updateAppAttributes(
+  appId: string,
+  attributes: { contentRightsDeclaration?: string },
+): Promise<void> {
+  await ascFetch(`/v1/apps/${appId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      data: {
+        type: "apps",
+        id: appId,
+        attributes,
+      },
+    }),
+  });
+
+  // Invalidate apps cache so next fetch picks up changes
+  cacheSet("apps", null, 0);
 }

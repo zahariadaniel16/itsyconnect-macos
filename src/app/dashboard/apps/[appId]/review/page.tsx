@@ -19,7 +19,7 @@ export default function AppReviewPage() {
   const searchParams = useSearchParams();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const { versions, loading: versionsLoading, refresh: refreshVersions } = useVersions();
+  const { versions, loading: versionsLoading, updateVersion } = useVersions();
 
   const selectedVersion = useMemo(
     () => resolveVersion(versions, searchParams.get("version")),
@@ -94,11 +94,31 @@ export default function AppReviewPage() {
       }
 
       toast.success("Review info saved");
-      await refreshVersions();
+
+      // Update cached version so navigating away and back shows saved values
+      if (selectedVersion) {
+        updateVersion(selectedVersion.id, (v) => ({
+          ...v,
+          reviewDetail: {
+            id: v.reviewDetail?.id ?? "",
+            attributes: {
+              notes,
+              demoAccountRequired: signInRequired,
+              demoAccountName: demoName,
+              demoAccountPassword: demoPassword,
+              contactFirstName: firstName,
+              contactLastName: lastName,
+              contactPhone: phone,
+              contactEmail: email,
+            },
+          },
+        }));
+      }
+      setDirty(false);
     });
   }, [
     appId, selectedVersion, notes, signInRequired, demoName, demoPassword,
-    firstName, lastName, phone, email, registerSave, refreshVersions,
+    firstName, lastName, phone, email, registerSave, setDirty, updateVersion,
   ]);
 
   if (!app) {

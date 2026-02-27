@@ -18,6 +18,7 @@ import {
   EyeSlash,
   Info,
   Lock,
+  MagicWand,
   Package,
   SpinnerGap,
   XCircle,
@@ -219,10 +220,6 @@ export default function SetupPage() {
     }
   }
 
-  function handleFinish() {
-    handleSubmit();
-  }
-
   if (!ready) return null;
 
   return (
@@ -235,11 +232,9 @@ export default function SetupPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            {step === 2 ? (
-              <AppStoreLogoIcon size={32} weight="fill" />
-            ) : (
-              <Package size={32} weight="fill" />
-            )}
+            {step === 1 && <Package size={32} weight="fill" />}
+            {step === 2 && <AppStoreLogoIcon size={32} weight="fill" />}
+            {step === 3 && <MagicWand size={32} weight="fill" />}
           </div>
           <h1 className="text-2xl font-bold tracking-tight">
             {step === 1 && "Welcome to Itsyconnect"}
@@ -461,7 +456,10 @@ export default function SetupPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">API key</label>
+              <label className="text-sm text-muted-foreground">
+                API key{" "}
+                <span className="text-xs text-muted-foreground/60">(optional)</span>
+              </label>
               <div className="flex items-center gap-2">
                 <Input
                   type={showKey ? "text" : "password"}
@@ -479,13 +477,16 @@ export default function SetupPage() {
                   {showKey ? <EyeSlash size={16} /> : <Eye size={16} />}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                You can add this later in settings.
+              </p>
             </div>
           </div>
         )}
 
         {/* Navigation */}
-        <div className={`flex items-center ${step === 1 ? "justify-center" : "justify-between"}`}>
-          {step > 1 ? (
+        <div className="flex items-center justify-end gap-2">
+          {step > 1 && (
             <Button
               variant="ghost"
               onClick={() => setStep(step - 1)}
@@ -493,37 +494,24 @@ export default function SetupPage() {
             >
               Back
             </Button>
-          ) : (
-            step !== 1 && <div />
           )}
-          <div className="flex items-center gap-2">
-            {step === 3 && !apiKey && (
-              <Button
-                variant="ghost"
-                onClick={handleFinish}
-                disabled={submitting}
-              >
-                Skip
-              </Button>
+          <Button
+            onClick={handleNext}
+            disabled={!canAdvance() || submitting}
+          >
+            {submitting ? (
+              <>
+                <SpinnerGap size={16} className="animate-spin" />
+                Setting up...
+              </>
+            ) : step === TOTAL_STEPS ? (
+              "Finish"
+            ) : step === 1 ? (
+              "Get started"
+            ) : (
+              "Continue"
             )}
-            <Button
-              onClick={handleNext}
-              disabled={!canAdvance() || submitting}
-            >
-              {submitting ? (
-                <>
-                  <SpinnerGap size={16} className="animate-spin" />
-                  Setting up...
-                </>
-              ) : step === TOTAL_STEPS ? (
-                "Finish"
-              ) : step === 1 ? (
-                "Get started"
-              ) : (
-                "Continue"
-              )}
-            </Button>
-          </div>
+          </Button>
         </div>
       </div>
     </div>

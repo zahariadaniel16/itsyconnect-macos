@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { label: "Credentials", segment: "" },
   { label: "AI", segment: "/ai" },
+  { label: "Appearance", segment: "/appearance" },
 ];
 
 export default function SettingsLayout({

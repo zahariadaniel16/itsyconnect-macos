@@ -15,6 +15,8 @@ interface VersionsContextValue {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  /** Update a single version in-place without refetching. */
+  updateVersion: (versionId: string, updater: (v: AscVersion) => AscVersion) => void;
 }
 
 const VersionsContext = createContext<VersionsContextValue>({
@@ -22,6 +24,7 @@ const VersionsContext = createContext<VersionsContextValue>({
   loading: true,
   error: null,
   refresh: async () => {},
+  updateVersion: () => {},
 });
 
 export function VersionsProvider({ children }: { children: React.ReactNode }) {
@@ -58,8 +61,17 @@ export function VersionsProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
+  const updateVersion = useCallback(
+    (versionId: string, updater: (v: AscVersion) => AscVersion) => {
+      setVersions((prev) =>
+        prev.map((v) => (v.id === versionId ? updater(v) : v)),
+      );
+    },
+    [],
+  );
+
   return (
-    <VersionsContext.Provider value={{ versions, loading, error, refresh }}>
+    <VersionsContext.Provider value={{ versions, loading, error, refresh, updateVersion }}>
       {children}
     </VersionsContext.Provider>
   );
