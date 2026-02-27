@@ -3,6 +3,8 @@ import {
   getVersionPlatforms,
   getVersionsByPlatform,
   resolveVersion,
+  isValidVersionString,
+  hasInvalidVersionChars,
   EDITABLE_STATES,
   PLATFORM_LABELS,
   STATE_DOT_COLORS,
@@ -162,6 +164,61 @@ describe("STATE_DOT_COLORS", () => {
 
   it("has 9 entries", () => {
     expect(Object.keys(STATE_DOT_COLORS)).toHaveLength(9);
+  });
+});
+
+describe("isValidVersionString", () => {
+  it("accepts 1-component versions", () => {
+    expect(isValidVersionString("1")).toBe(true);
+    expect(isValidVersionString("42")).toBe(true);
+  });
+
+  it("accepts 2-component versions", () => {
+    expect(isValidVersionString("1.0")).toBe(true);
+    expect(isValidVersionString("12.34")).toBe(true);
+  });
+
+  it("accepts 3-component versions", () => {
+    expect(isValidVersionString("1.0.0")).toBe(true);
+    expect(isValidVersionString("10.20.30")).toBe(true);
+  });
+
+  it("rejects 4+ component versions", () => {
+    expect(isValidVersionString("1.0.0.0")).toBe(false);
+    expect(isValidVersionString("1.2.3.4.5")).toBe(false);
+  });
+
+  it("rejects text", () => {
+    expect(isValidVersionString("abc")).toBe(false);
+    expect(isValidVersionString("1.0-beta")).toBe(false);
+    expect(isValidVersionString("1.0b1")).toBe(false);
+    expect(isValidVersionString("v1.0")).toBe(false);
+  });
+
+  it("rejects empty string", () => {
+    expect(isValidVersionString("")).toBe(false);
+  });
+
+  it("rejects trailing/leading dots", () => {
+    expect(isValidVersionString(".1.0")).toBe(false);
+    expect(isValidVersionString("1.0.")).toBe(false);
+  });
+});
+
+describe("hasInvalidVersionChars", () => {
+  it("returns false for digits and dots", () => {
+    expect(hasInvalidVersionChars("1.0.0")).toBe(false);
+    expect(hasInvalidVersionChars("1.")).toBe(false);
+    expect(hasInvalidVersionChars("123")).toBe(false);
+  });
+
+  it("returns true when letters are present", () => {
+    expect(hasInvalidVersionChars("v1.0")).toBe(true);
+    expect(hasInvalidVersionChars("1.0-beta")).toBe(true);
+  });
+
+  it("returns false for empty string", () => {
+    expect(hasInvalidVersionChars("")).toBe(false);
   });
 });
 

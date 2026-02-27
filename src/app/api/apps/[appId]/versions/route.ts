@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { listVersions } from "@/lib/asc/versions";
-import { createVersion } from "@/lib/asc/version-mutations";
+import { createVersion, updateVersionAttributes, invalidateVersionsCache } from "@/lib/asc/version-mutations";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
+
+const EDITABLE_STATES = new Set([
+  "PREPARE_FOR_SUBMISSION",
+  "REJECTED",
+  "METADATA_REJECTED",
+  "DEVELOPER_REJECTED",
+]);
 
 
 export async function GET(
@@ -50,6 +57,21 @@ export async function POST(
   }
 
   try {
+    // Check if there's already an editable version for this platform
+    const versions = await listVersions(appId);
+    const existing = versions.find(
+      (v) =>
+        v.attributes.platform === platform &&
+        EDITABLE_STATES.has(v.attributes.appVersionState),
+    );
+
+    if (existing) {
+      // Update the existing version's versionString instead of creating new
+      await updateVersionAttributes(existing.id, { versionString });
+      invalidateVersionsCache(appId);
+      return NextResponse.json({ ok: true, versionId: existing.id }, { status: 200 });
+    }
+
     const versionId = await createVersion(appId, versionString, platform);
     return NextResponse.json({ ok: true, versionId }, { status: 201 });
   } catch (err) {

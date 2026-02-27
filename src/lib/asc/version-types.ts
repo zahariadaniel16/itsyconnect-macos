@@ -97,6 +97,18 @@ export function stateLabel(state: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Validate a version string: 1–3 dot-separated integers (e.g. 1.0, 2.3.1). */
+const VERSION_RE = /^\d+(\.\d+){0,2}$/;
+export function isValidVersionString(s: string): boolean {
+  return VERSION_RE.test(s);
+}
+
+/** Returns true when the string contains characters that can never form a valid version. */
+const VERSION_CHARS_RE = /^[\d.]*$/;
+export function hasInvalidVersionChars(s: string): boolean {
+  return !VERSION_CHARS_RE.test(s);
+}
+
 /** Resolve a version by ID or fall back to the first editable / latest. */
 export function resolveVersion(
   versions: AscVersion[],

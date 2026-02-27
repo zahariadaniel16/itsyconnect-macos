@@ -4,6 +4,7 @@ import { cacheInvalidate } from "@/lib/cache";
 export async function updateVersionAttributes(
   versionId: string,
   attributes: {
+    versionString?: string;
     releaseType?: string;
     earliestReleaseDate?: string | null;
   },

@@ -33,6 +33,8 @@ import {
   getVersionPlatforms,
   getVersionsByPlatform,
   resolveVersion,
+  isValidVersionString,
+  hasInvalidVersionChars,
   EDITABLE_STATES,
   PLATFORM_LABELS,
   STATE_DOT_COLORS,
@@ -201,14 +203,17 @@ export function HeaderVersionActions() {
     setDialogOpen(true);
   }
 
+  const trimmedVersion = versionString.trim();
+  const versionValid = trimmedVersion !== "" && isValidVersionString(trimmedVersion);
+
   async function handleCreate() {
-    if (!versionString.trim() || !platform) return;
+    if (!versionValid || !platform) return;
     setCreating(true);
     try {
       const res = await fetch(`/api/apps/${appId}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionString: versionString.trim(), platform }),
+        body: JSON.stringify({ versionString: trimmedVersion, platform }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -269,7 +274,7 @@ export function HeaderVersionActions() {
                 className="font-mono"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && versionString.trim() && platform) {
+                  if (e.key === "Enter" && versionValid && platform) {
                     e.preventDefault();
                     handleCreate();
                   }
@@ -292,9 +297,14 @@ export function HeaderVersionActions() {
               </Select>
             </div>
           </div>
+          {trimmedVersion !== "" && hasInvalidVersionChars(trimmedVersion) && (
+            <p className="text-sm text-destructive">
+              Use digits and dots only (e.g. 1.2.0)
+            </p>
+          )}
           <Button
             onClick={handleCreate}
-            disabled={!versionString.trim() || !platform || creating}
+            disabled={!versionValid || !platform || creating}
           >
             {creating && <SpinnerGap size={14} className="animate-spin" />}
             {creating ? "Creating\u2026" : "Create"}

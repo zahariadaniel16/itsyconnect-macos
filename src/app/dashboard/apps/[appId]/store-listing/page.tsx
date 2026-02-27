@@ -11,12 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { AppWindow, CalendarBlank, Lock, PencilSimple, SpinnerGap } from "@phosphor-icons/react";
+import { AppWindow, CalendarBlank, Check, Lock, PencilSimple, SpinnerGap, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
-import { resolveVersion, EDITABLE_STATES, STATE_DOT_COLORS, stateLabel } from "@/lib/asc/version-types";
+import { resolveVersion, isValidVersionString, hasInvalidVersionChars, EDITABLE_STATES, STATE_DOT_COLORS, stateLabel, type AscVersion } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import type { AscLocalization } from "@/lib/asc/localizations";
 import {
@@ -405,34 +405,18 @@ export default function StoreListingPage() {
         )}
 
         {/* Version string */}
-        <section className="space-y-2">
-          <h3 className="section-title">Version</h3>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-2xl font-bold tracking-tight">
-              {selectedVersion?.attributes.versionString ?? "–"}
-            </span>
-            {!readOnly && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                onClick={() =>
-                  toast.info("Version editing not available in prototype")
-                }
-              >
-                <PencilSimple size={14} />
-              </Button>
-            )}
-            {selectedVersion && (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <span
-                  className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[selectedVersion.attributes.appVersionState] ?? "bg-muted-foreground"}`}
-                />
-                {stateLabel(selectedVersion.attributes.appVersionState)}
-              </span>
-            )}
-          </div>
-        </section>
+        <VersionStringSection
+          appId={appId}
+          version={selectedVersion}
+          readOnly={readOnly}
+          onUpdated={(newString) => {
+            if (!selectedVersion) return;
+            updateVersion(selectedVersion.id, (v) => ({
+              ...v,
+              attributes: { ...v.attributes, versionString: newString },
+            }));
+          }}
+        />
 
         {locales.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -678,6 +662,129 @@ export default function StoreListingPage() {
           </div>
         </section>
     </div>
+  );
+}
+
+function VersionStringSection({
+  appId,
+  version,
+  readOnly,
+  onUpdated,
+}: {
+  appId: string;
+  version?: AscVersion;
+  readOnly: boolean;
+  onUpdated: (newString: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    setDraft(version?.attributes.versionString ?? "");
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+  }
+
+  const trimmed = draft.trim();
+  const draftValid = trimmed !== "" && isValidVersionString(trimmed);
+
+  async function save() {
+    if (!draftValid || !version) return;
+    if (trimmed === version.attributes.versionString) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/apps/${appId}/versions/${version.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionString: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to update version");
+        return;
+      }
+      onUpdated(trimmed);
+      setEditing(false);
+    } catch {
+      toast.error("Failed to update version");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="space-y-2">
+      <h3 className="section-title">Version</h3>
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <>
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="h-9 w-32 font-mono text-lg font-bold"
+              autoFocus
+              disabled={saving}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && draftValid) { e.preventDefault(); save(); }
+                if (e.key === "Escape") cancel();
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground"
+              onClick={save}
+              disabled={saving || !draftValid}
+            >
+              {saving ? <SpinnerGap size={14} className="animate-spin" /> : <Check size={14} />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground"
+              onClick={cancel}
+              disabled={saving}
+            >
+              <X size={14} />
+            </Button>
+            {trimmed !== "" && hasInvalidVersionChars(trimmed) && (
+              <span className="text-xs text-destructive">Digits and dots only (e.g. 1.2.0)</span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="font-mono text-2xl font-bold tracking-tight">
+              {version?.attributes.versionString ?? "–"}
+            </span>
+            {!readOnly && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground"
+                onClick={startEdit}
+              >
+                <PencilSimple size={14} />
+              </Button>
+            )}
+          </>
+        )}
+        {version && (
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <span
+              className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[version.attributes.appVersionState] ?? "bg-muted-foreground"}`}
+            />
+            {stateLabel(version.attributes.appVersionState)}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 
