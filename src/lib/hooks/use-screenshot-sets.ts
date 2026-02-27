@@ -18,7 +18,6 @@ function hasProcessingScreenshots(sets: AscScreenshotSet[]): boolean {
 interface UseScreenshotSetsResult {
   screenshotSets: AscScreenshotSet[];
   loading: boolean;
-  error: string | null;
   refresh: () => Promise<void>;
 }
 
@@ -29,7 +28,6 @@ export function useScreenshotSets(
 ): UseScreenshotSetsResult {
   const [screenshotSets, setScreenshotSets] = useState<AscScreenshotSet[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
 
   const fetchSets = useCallback(async (forceRefresh = false) => {
@@ -43,7 +41,6 @@ export function useScreenshotSets(
     if (!initialLoadDone.current) {
       setLoading(true);
     }
-    setError(null);
 
     const qs = forceRefresh ? "?refresh=1" : "";
     try {
@@ -51,8 +48,6 @@ export function useScreenshotSets(
         `/api/apps/${appId}/versions/${versionId}/localizations/${localizationId}/screenshots${qs}`,
       );
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || "Failed to load screenshots");
         setScreenshotSets([]);
         return;
       }
@@ -61,7 +56,6 @@ export function useScreenshotSets(
       setScreenshotSets(data.screenshotSets ?? []);
       initialLoadDone.current = true;
     } catch {
-      setError("Network error");
       setScreenshotSets([]);
     } finally {
       setLoading(false);
@@ -90,5 +84,5 @@ export function useScreenshotSets(
     return () => clearInterval(timer);
   }, [screenshotSets, fetchSets]);
 
-  return { screenshotSets, loading, error, refresh };
+  return { screenshotSets, loading, refresh };
 }

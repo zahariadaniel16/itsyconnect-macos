@@ -3,7 +3,6 @@ import { cacheGet, cacheSet } from "@/lib/cache";
 import type { AscScreenshot, AscScreenshotSet } from "./display-types";
 
 export type { AscScreenshot, AscScreenshotSet };
-export { screenshotImageUrl } from "./display-types";
 
 const SCREENSHOTS_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 

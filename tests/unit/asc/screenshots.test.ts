@@ -14,7 +14,6 @@ vi.mock("@/lib/cache", () => ({
 }));
 
 import { listScreenshotSets } from "@/lib/asc/screenshots";
-import { screenshotImageUrl } from "@/lib/asc/display-types";
 
 describe("listScreenshotSets", () => {
   beforeEach(() => {
@@ -175,21 +174,5 @@ describe("listScreenshotSets", () => {
     expect(result[0].screenshots).toHaveLength(1);
     expect(result[1].screenshots).toHaveLength(1);
     expect(mockAscFetch).toHaveBeenCalledTimes(3);
-  });
-});
-
-describe("screenshotImageUrl", () => {
-  it("builds URL with default width", () => {
-    const url = screenshotImageUrl("PurpleSource/v4/abc/1.png");
-    expect(url).toBe(
-      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource/v4/abc/1.png/300x0w.png",
-    );
-  });
-
-  it("builds URL with custom width", () => {
-    const url = screenshotImageUrl("PurpleSource/v4/abc/1.png", 600);
-    expect(url).toBe(
-      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource/v4/abc/1.png/600x0w.png",
-    );
   });
 });

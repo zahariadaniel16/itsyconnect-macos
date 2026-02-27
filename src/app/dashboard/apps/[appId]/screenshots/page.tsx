@@ -44,6 +44,7 @@ import { useScreenshotSets } from "@/lib/hooks/use-screenshot-sets";
 import { localeName, sortLocales } from "@/lib/asc/locale-names";
 import {
   screenshotImageUrl,
+  screenshotErrorMessage,
   displayTypeLabel,
   sortDisplayTypes,
   DISPLAY_TYPE_SIZES,
@@ -93,7 +94,9 @@ function SortableScreenshot({
   const isComplete = deliveryState === "COMPLETE";
   const isFailed = deliveryState === "FAILED";
   const hasToken = !!screenshot.attributes.assetToken;
-  const deliveryErrors = assetDelivery?.errors ?? [];
+  const errorMessage = isFailed
+    ? screenshotErrorMessage(assetDelivery?.errors ?? [])
+    : "";
 
   return (
     <div
@@ -125,11 +128,11 @@ function SortableScreenshot({
         ) : isFailed ? (
           <div
             className="flex h-[200px] w-[112px] flex-col items-center justify-center gap-1.5 rounded bg-destructive/5"
-            title={deliveryErrors.map((e) => e.description || e.code).join(", ") || "Processing failed"}
+            title={errorMessage}
           >
             <WarningCircle size={24} className="text-destructive/60" />
             <span className="max-w-[100px] text-center text-[10px] leading-tight text-destructive/60">
-              {deliveryErrors[0]?.description || "Failed"}
+              {errorMessage}
             </span>
           </div>
         ) : (

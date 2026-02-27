@@ -3,6 +3,7 @@ import {
   displayTypeLabel,
   sortDisplayTypes,
   screenshotImageUrl,
+  screenshotErrorMessage,
   getDeviceCategory,
   DISPLAY_TYPE_LABELS,
   DISPLAY_TYPE_ORDER,
@@ -71,6 +72,40 @@ describe("display-types", () => {
 
     it("returns undefined for an unknown display type", () => {
       expect(getDeviceCategory("UNKNOWN_TYPE")).toBeUndefined();
+    });
+  });
+
+  describe("screenshotErrorMessage", () => {
+    it("returns human message for known error code", () => {
+      expect(
+        screenshotErrorMessage([{ code: "IMAGE_BAD_DIMENSION_SM_LESS_MIN", description: "IMAGE_BAD_DIMENSION_SM_LESS_MIN" }]),
+      ).toBe("Image is too small for this display type");
+    });
+
+    it("falls back to description for unknown error code", () => {
+      expect(
+        screenshotErrorMessage([{ code: "NEW_UNKNOWN_CODE", description: "Something went wrong" }]),
+      ).toBe("Something went wrong");
+    });
+
+    it("returns generic message for empty errors array", () => {
+      expect(screenshotErrorMessage([])).toBe("Processing failed");
+    });
+
+    it("maps all known error codes", () => {
+      const knownCodes = [
+        "IMAGE_BAD_DIMENSION_SM_LESS_MIN",
+        "IMAGE_BAD_DIMENSION_SM_OVER_MAX",
+        "IMG_BAD_DIMENSIONS",
+        "IMG_BAD_COLOR_SPACE",
+        "IMG_APPEARS_CORRUPT",
+        "IMAGE_TOOL_FAILURE",
+        "IMG_BAD_FORMAT",
+      ];
+      for (const code of knownCodes) {
+        const msg = screenshotErrorMessage([{ code, description: code }]);
+        expect(msg).not.toBe(code);
+      }
     });
   });
 

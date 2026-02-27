@@ -138,6 +138,25 @@ export interface AscScreenshotSet {
   screenshots: AscScreenshot[];
 }
 
+/** Map Apple's screenshot error codes to human-readable messages. */
+const SCREENSHOT_ERROR_MESSAGES: Record<string, string> = {
+  IMAGE_BAD_DIMENSION_SM_LESS_MIN: "Image is too small for this display type",
+  IMAGE_BAD_DIMENSION_SM_OVER_MAX: "Image is too large for this display type",
+  IMG_BAD_DIMENSIONS: "Image dimensions don't match this display type",
+  IMG_BAD_COLOR_SPACE: "Image must use RGB colour space",
+  IMG_APPEARS_CORRUPT: "Image file appears to be corrupt – try re-saving it",
+  IMAGE_TOOL_FAILURE: "Apple could not process this image – try again later",
+  IMG_BAD_FORMAT: "Unsupported image format – use PNG or JPEG",
+};
+
+export function screenshotErrorMessage(
+  errors: Array<{ code: string; description: string }>,
+): string {
+  if (errors.length === 0) return "Processing failed";
+  const first = errors[0];
+  return SCREENSHOT_ERROR_MESSAGES[first.code] ?? first.description ?? "Processing failed";
+}
+
 /** Build an Apple CDN thumbnail URL from a screenshot's assetToken. */
 export function screenshotImageUrl(assetToken: string, width = 300): string {
   return `https://is1-ssl.mzstatic.com/image/thumb/${assetToken}/${width}x0w.png`;

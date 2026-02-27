@@ -2,9 +2,6 @@ import { ascFetch } from "./client";
 import { cacheGet, cacheSet } from "@/lib/cache";
 import type { AscBuild, AscPhasedRelease, AscReviewDetail, AscVersion } from "./version-types";
 
-export type { AscBuild, AscPhasedRelease, AscReviewDetail, AscVersion };
-export { getVersionPlatforms, getVersionsByPlatform, resolveVersion } from "./version-types";
-
 const VERSIONS_TTL = 15 * 60 * 1000; // 15 min
 
 
