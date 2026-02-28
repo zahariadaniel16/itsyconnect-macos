@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,102 +14,152 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Star, ChatText, WarningCircle, Translate } from "@phosphor-icons/react";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Star,
+  ChatText,
+  WarningCircle,
+  Translate,
+  CircleNotch,
+  ArrowClockwise,
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
+import { useAIStatus } from "@/lib/hooks/use-ai-status";
+import { AIRequiredDialog } from "@/components/ai-required-dialog";
+import type { AscCustomerReview } from "@/lib/asc/reviews";
+import type { MockReview } from "@/lib/mock-reviews";
 
-interface MockReview {
+// ── Territory helpers ──────────────────────────────────────────────
+
+/** Map ISO 3166-1 alpha-3 → alpha-2 for common territories (Intl.DisplayNames uses alpha-2). */
+const ALPHA3_TO_ALPHA2: Record<string, string> = {
+  USA: "US", GBR: "GB", FRA: "FR", DEU: "DE", JPN: "JP", ESP: "ES",
+  ITA: "IT", BRA: "BR", CHN: "CN", KOR: "KR", RUS: "RU", CAN: "CA",
+  AUS: "AU", NLD: "NL", MEX: "MX", IND: "IN", SGP: "SG", SWE: "SE",
+  NOR: "NO", DNK: "DK", FIN: "FI", CHE: "CH", AUT: "AT", BEL: "BE",
+  PRT: "PT", POL: "PL", TUR: "TR", ARE: "AE", SAU: "SA", THA: "TH",
+  IDN: "ID", MYS: "MY", PHL: "PH", VNM: "VN", TWN: "TW", HKG: "HK",
+  NZL: "NZ", ZAF: "ZA", ARG: "AR", CHL: "CL", COL: "CO", PER: "PE",
+  ISR: "IL", EGY: "EG", NGA: "NG", KEN: "KE", UKR: "UA", ROU: "RO",
+  CZE: "CZ", HUN: "HU", GRC: "GR", IRL: "IE", LUX: "LU", HRV: "HR",
+};
+
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+function territoryName(alpha3: string): string {
+  const alpha2 = ALPHA3_TO_ALPHA2[alpha3];
+  if (alpha2) {
+    try {
+      return regionNames.of(alpha2) ?? alpha3;
+    } catch {
+      return alpha3;
+    }
+  }
+  return alpha3;
+}
+
+/** Territories where English is not the primary language. */
+const NON_ENGLISH_TERRITORIES = new Set([
+  "FRA", "DEU", "JPN", "ESP", "ITA", "BRA", "CHN", "KOR", "RUS",
+  "MEX", "NLD", "SWE", "NOR", "DNK", "FIN", "AUT", "PRT", "POL",
+  "TUR", "ARE", "SAU", "THA", "IDN", "MYS", "VNM", "TWN", "HKG",
+  "ARG", "CHL", "COL", "PER", "EGY", "UKR", "ROU", "CZE", "HUN",
+  "GRC", "HRV", "CHE", "BEL", "LUX",
+]);
+
+/** Map territory alpha-3 to a rough locale for translation source language. */
+function territoryToLocale(alpha3: string): string {
+  const map: Record<string, string> = {
+    FRA: "fr-FR", DEU: "de-DE", JPN: "ja-JP", ESP: "es-ES", ITA: "it-IT",
+    BRA: "pt-BR", CHN: "zh-CN", KOR: "ko-KR", RUS: "ru-RU", MEX: "es-MX",
+    NLD: "nl-NL", SWE: "sv-SE", NOR: "nb-NO", DNK: "da-DK", FIN: "fi-FI",
+    AUT: "de-AT", PRT: "pt-PT", POL: "pl-PL", TUR: "tr-TR", ARE: "ar-AE",
+    SAU: "ar-SA", THA: "th-TH", IDN: "id-ID", VNM: "vi-VN", TWN: "zh-TW",
+    HKG: "zh-HK", ARG: "es-AR", CHL: "es-CL", COL: "es-CO", PER: "es-PE",
+    EGY: "ar-EG", UKR: "uk-UA", ROU: "ro-RO", CZE: "cs-CZ", HUN: "hu-HU",
+    GRC: "el-GR", HRV: "hr-HR", CHE: "de-CH", BEL: "fr-BE", LUX: "fr-LU",
+    MYS: "ms-MY",
+  };
+  return map[alpha3] ?? "en-US";
+}
+
+// ── Normalised review type ─────────────────────────────────────────
+
+interface Review {
   id: string;
   rating: number;
   title: string;
   body: string;
-  author: string;
+  reviewerNickname: string;
   territory: string;
-  date: string;
-  translation?: {
-    title: string;
-    body: string;
-  };
-  reply?: {
-    body: string;
-    date: string;
-    pending?: boolean;
+  createdDate: string;
+  response?: {
+    id: string;
+    responseBody: string;
+    lastModifiedDate: string;
+    state: "PENDING_PUBLISH" | "PUBLISHED";
   };
 }
 
-const MOCK_REVIEWS: MockReview[] = [
-  {
-    id: "rev-1",
-    rating: 5,
-    title: "Best weather app I've used",
-    body: "Clean interface, accurate forecasts, and the radar is incredibly smooth. Exactly what a weather app should be \u2013 fast and beautiful without being bloated.",
-    author: "JohnDoe",
-    territory: "United States",
-    date: "2026-02-25T16:29:00Z",
-  },
-  {
-    id: "rev-2",
-    rating: 3,
-    title: "Good but widget needs work",
-    body: "The app itself is great, but the home screen widget often shows stale data. It would also be nice to have a wind speed widget option.",
-    author: "RonCv55",
-    territory: "Netherlands",
-    date: "2026-02-23T20:40:00Z",
-    reply: {
-      body: "Thanks for the feedback! We\u2019re aware of the widget refresh issue and have a fix coming in 2.1.1. Wind speed widget is on our roadmap.",
-      date: "2026-02-24T09:15:00Z",
-    },
-  },
-  {
-    id: "rev-3",
-    rating: 1,
-    title: "Crashes on launch since update",
-    body: "Updated to 2.0.1 and the app crashes immediately on my iPhone 14. Tried reinstalling twice. Was working fine before.",
-    author: "soundneedle",
-    territory: "United States",
-    date: "2026-02-19T00:04:00Z",
-    reply: {
-      body: "Sorry about this! We\u2019ve identified the issue affecting iPhone 14 models and submitted a fix. Please try updating to 2.0.2 when it\u2019s available.",
-      date: "2026-02-20T11:30:00Z",
-      pending: true,
-    },
-  },
-  {
-    id: "rev-4",
-    rating: 5,
-    title: "Simple et efficace",
-    body: "Enfin une app m\u00e9t\u00e9o qui va droit au but. Pas de pubs, pas d\u2019abonnement, juste la m\u00e9t\u00e9o. L\u2019animation de pluie est magnifique.",
-    author: "LeMacUser",
-    territory: "France",
-    date: "2026-02-11T08:30:00Z",
-    translation: {
-      title: "Simple and effective",
-      body: "Finally a weather app that gets straight to the point. No ads, no subscription, just the weather. The rain animation is gorgeous.",
-    },
-  },
-  {
-    id: "rev-5",
-    rating: 4,
-    title: "Almost perfect",
-    body: "Love the design and accuracy. Only thing missing is air quality alerts \u2013 I need to know when pollen counts are high. Would instantly be 5 stars with that.",
-    author: "WeatherWatcher42",
-    territory: "United Kingdom",
-    date: "2026-02-08T14:20:00Z",
-  },
-  {
-    id: "rev-6",
-    rating: 2,
-    title: "Standort wird immer zur\u00fcckgesetzt",
-    body: "Jedes Mal wenn ich die App \u00f6ffne, springt sie zur\u00fcck zu meinem Heimatort, statt sich die letzte Stadt zu merken. Sehr nervig auf Reisen.",
-    author: "TravelPro",
-    territory: "Germany",
-    date: "2026-02-05T09:45:00Z",
-  },
-];
+function normaliseAscReview(r: AscCustomerReview): Review {
+  return {
+    id: r.id,
+    rating: r.attributes.rating,
+    title: r.attributes.title,
+    body: r.attributes.body,
+    reviewerNickname: r.attributes.reviewerNickname,
+    territory: r.attributes.territory,
+    createdDate: r.attributes.createdDate,
+    response: r.response
+      ? {
+          id: r.response.id,
+          responseBody: r.response.attributes.responseBody,
+          lastModifiedDate: r.response.attributes.lastModifiedDate,
+          state: r.response.attributes.state,
+        }
+      : undefined,
+  };
+}
 
-const TERRITORIES = [
-  ...new Set(MOCK_REVIEWS.map((r) => r.territory)),
-].sort();
+function normaliseMockReview(r: MockReview): Review {
+  return {
+    id: r.id,
+    rating: r.rating,
+    title: r.title,
+    body: r.body,
+    reviewerNickname: r.reviewerNickname,
+    territory: r.territory,
+    createdDate: r.createdDate,
+    response: r.response
+      ? {
+          id: r.response.id,
+          responseBody: r.response.responseBody,
+          lastModifiedDate: r.response.lastModifiedDate,
+          state: r.response.state,
+        }
+      : undefined,
+  };
+}
+
+// ── Sub-components ─────────────────────────────────────────────────
 
 function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
@@ -156,61 +206,238 @@ function RatingBar({
   );
 }
 
-/** Detect non-English reviews by checking for non-ASCII characters or known non-English territories. */
-const NON_ENGLISH_TERRITORIES = new Set([
-  "France",
-  "Germany",
-  "Japan",
-  "Spain",
-  "Italy",
-  "Brazil",
-  "China",
-  "South Korea",
-  "Russia",
-]);
+// ── Main page ──────────────────────────────────────────────────────
 
-function isNonEnglish(review: MockReview): boolean {
-  return NON_ENGLISH_TERRITORIES.has(review.territory);
-}
+const MAX_RESPONSE_LENGTH = 5970;
 
 export default function ReviewsPage() {
   const { appId } = useParams<{ appId: string }>();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
+  const { configured: aiConfigured } = useAIStatus();
 
+  // Data fetching
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filters
   const [sortBy, setSortBy] = useState("newest");
   const [ratingFilter, setRatingFilter] = useState("all");
   const [territoryFilter, setTerritoryFilter] = useState("all");
   const [hideResponded, setHideResponded] = useState(false);
-  const [showTranslation, setShowTranslation] = useState<Record<string, boolean>>({});
+
+  // Translation state
+  const [translations, setTranslations] = useState<
+    Record<string, { title: string; body: string }>
+  >({});
+  const [translating, setTranslating] = useState<Record<string, boolean>>({});
+  const [showTranslation, setShowTranslation] = useState<
+    Record<string, boolean>
+  >({});
+
+  // Reply dialog
+  const [replyTarget, setReplyTarget] = useState<Review | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [replying, setReplying] = useState(false);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 20;
+
+  // AI required dialog
+  const [showAIRequired, setShowAIRequired] = useState(false);
+
+  const fetchReviews = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/apps/${appId}/reviews?sort=${sortBy}`,
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Failed to fetch reviews (${res.status})`);
+      }
+      const data = await res.json();
+      // Normalise: API returns either ASC reviews or mock reviews
+      const normalised: Review[] = data.reviews.map((r: AscCustomerReview | MockReview) => {
+        if ("attributes" in r) return normaliseAscReview(r as AscCustomerReview);
+        return normaliseMockReview(r as MockReview);
+      });
+      setReviews(normalised);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch reviews");
+    } finally {
+      setLoading(false);
+    }
+  }, [appId, sortBy]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
+
+  // Client-side filtering (sort is server-side via API)
+  const territories = useMemo(
+    () => [...new Set(reviews.map((r) => r.territory))].sort(),
+    [reviews],
+  );
 
   const filtered = useMemo(() => {
-    let reviews = [...MOCK_REVIEWS];
+    let result = [...reviews];
 
     if (ratingFilter !== "all") {
       const star = parseInt(ratingFilter);
-      reviews = reviews.filter((r) => r.rating === star);
+      result = result.filter((r) => r.rating === star);
     }
 
     if (territoryFilter !== "all") {
-      reviews = reviews.filter((r) => r.territory === territoryFilter);
+      result = result.filter((r) => r.territory === territoryFilter);
     }
 
     if (hideResponded) {
-      reviews = reviews.filter((r) => !r.reply);
+      result = result.filter((r) => !r.response);
     }
 
-    reviews.sort((a, b) => {
-      if (sortBy === "newest")
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      if (sortBy === "oldest")
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
-      if (sortBy === "highest") return b.rating - a.rating;
-      return a.rating - b.rating;
-    });
+    return result;
+  }, [reviews, ratingFilter, territoryFilter, hideResponded]);
 
-    return reviews;
-  }, [sortBy, ratingFilter, territoryFilter, hideResponded]);
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [ratingFilter, territoryFilter, hideResponded, sortBy]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedReviews = filtered.slice(
+    (safePage - 1) * perPage,
+    safePage * perPage,
+  );
+
+  // Summary stats (from all reviews, not filtered)
+  const total = reviews.length;
+  const avgRating =
+    total > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / total : 0;
+  const distribution = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: reviews.filter((r) => r.rating === star).length,
+  }));
+
+  // ── Handlers ───────────────────────────────────────────────────
+
+  async function handleTranslate(review: Review) {
+    if (!aiConfigured) {
+      setShowAIRequired(true);
+      return;
+    }
+
+    // Already translated – just toggle visibility
+    if (translations[review.id]) {
+      setShowTranslation((prev) => ({
+        ...prev,
+        [review.id]: !prev[review.id],
+      }));
+      return;
+    }
+
+    setTranslating((prev) => ({ ...prev, [review.id]: true }));
+
+    try {
+      const fromLocale = territoryToLocale(review.territory);
+      const text = `${review.title}\n\n${review.body}`;
+
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "translate",
+          text,
+          field: "review",
+          fromLocale,
+          toLocale: "en-US",
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Translation failed");
+      }
+
+      const { result } = await res.json();
+      const parts = result.split("\n\n");
+      const title = parts[0] ?? review.title;
+      const body = parts.slice(1).join("\n\n") || parts[0] || review.body;
+
+      setTranslations((prev) => ({
+        ...prev,
+        [review.id]: { title, body },
+      }));
+      setShowTranslation((prev) => ({ ...prev, [review.id]: true }));
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Translation failed",
+      );
+    } finally {
+      setTranslating((prev) => ({ ...prev, [review.id]: false }));
+    }
+  }
+
+  async function handleReply() {
+    if (!replyTarget || !replyBody.trim()) return;
+
+    setReplying(true);
+    try {
+      const res = await fetch(`/api/apps/${appId}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reply",
+          reviewId: replyTarget.id,
+          responseBody: replyBody.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to send reply");
+      }
+
+      const data = await res.json();
+
+      // Update local state to show pending response immediately
+      setReviews((prev) =>
+        prev.map((r) =>
+          r.id === replyTarget.id
+            ? {
+                ...r,
+                response: {
+                  id: data.responseId ?? "pending",
+                  responseBody: replyBody.trim(),
+                  lastModifiedDate: new Date().toISOString(),
+                  state: "PENDING_PUBLISH" as const,
+                },
+              }
+            : r,
+        ),
+      );
+
+      toast.success("Reply sent – it may take up to 24 hours to appear on the App Store");
+      setReplyTarget(null);
+      setReplyBody("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send reply");
+    } finally {
+      setReplying(false);
+    }
+  }
+
+  function handleAppeal() {
+    window.open("https://appstoreconnect.apple.com", "_blank");
+    toast.info("Use App Store Connect to report concerns about this review");
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
 
   if (!app) {
     return (
@@ -220,13 +447,25 @@ export default function ReviewsPage() {
     );
   }
 
-  const total = MOCK_REVIEWS.length;
-  const avgRating =
-    MOCK_REVIEWS.reduce((sum, r) => sum + r.rating, 0) / total;
-  const distribution = [5, 4, 3, 2, 1].map((star) => ({
-    star,
-    count: MOCK_REVIEWS.filter((r) => r.rating === star).length,
-  }));
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <CircleNotch size={24} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
+        <p>{error}</p>
+        <Button variant="outline" size="sm" onClick={fetchReviews}>
+          <ArrowClockwise size={14} className="mr-1.5" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -289,9 +528,9 @@ export default function ReviewsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All territories</SelectItem>
-            {TERRITORIES.map((t) => (
+            {territories.map((t) => (
               <SelectItem key={t} value={t}>
-                {t}
+                {territoryName(t)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -312,13 +551,17 @@ export default function ReviewsPage() {
       {/* Reviews list */}
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No reviews match the current filters.
+          {total === 0
+            ? "No reviews yet."
+            : "No reviews match the current filters."}
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((review) => {
-            const foreign = isNonEnglish(review);
-            const translated = showTranslation[review.id] && review.translation;
+          {paginatedReviews.map((review) => {
+            const foreign = NON_ENGLISH_TERRITORIES.has(review.territory);
+            const translated =
+              showTranslation[review.id] && translations[review.id];
+            const isTranslating = translating[review.id];
 
             return (
               <Card key={review.id}>
@@ -328,50 +571,59 @@ export default function ReviewsPage() {
                     <div className="space-y-1">
                       <Stars rating={review.rating} size={12} />
                       <p className="text-sm font-semibold">
-                        {translated ? review.translation!.title : review.title}
+                        {translated
+                          ? translations[review.id].title
+                          : review.title}
                       </p>
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {new Date(review.date).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {new Date(review.createdDate).toLocaleDateString(
+                        "en-GB",
+                        {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        },
+                      )}
                     </span>
                   </div>
 
                   {/* Body */}
                   <p className="text-sm">
-                    {translated ? review.translation!.body : review.body}
+                    {translated
+                      ? translations[review.id].body
+                      : review.body}
                   </p>
 
                   {/* Translation toggle */}
                   {foreign && (
                     <button
                       type="button"
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={() => {
-                        if (review.translation) {
-                          setShowTranslation((prev) => ({
-                            ...prev,
-                            [review.id]: !prev[review.id],
-                          }));
-                        } else {
-                          toast.info(
-                            "Translation not available in prototype"
-                          );
-                        }
-                      }}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      onClick={() => handleTranslate(review)}
+                      disabled={isTranslating}
                     >
-                      <Translate size={14} />
-                      {translated ? "Show original" : "Translate"}
+                      {isTranslating ? (
+                        <CircleNotch
+                          size={14}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <Translate size={14} />
+                      )}
+                      {isTranslating
+                        ? "Translating…"
+                        : translated
+                          ? "Show original"
+                          : "Translate"}
                     </button>
                   )}
 
-                  {/* Footer: author + actions */}
+                  {/* Footer: author + territory + actions */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">
-                      {review.author} &middot; {review.territory}
+                      {review.reviewerNickname} &middot;{" "}
+                      {territoryName(review.territory)}
                     </span>
                     <div className="flex items-center gap-2">
                       {review.rating <= 2 && (
@@ -379,23 +631,20 @@ export default function ReviewsPage() {
                           variant="ghost"
                           size="sm"
                           className="text-muted-foreground"
-                          onClick={() =>
-                            toast.info("Appeals not available in prototype")
-                          }
+                          onClick={handleAppeal}
                         >
                           <WarningCircle size={14} className="mr-1.5" />
-                          Appeal
+                          Report concern
                         </Button>
                       )}
-                      {!review.reply && (
+                      {!review.response && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            toast.info(
-                              "Review responses not available in prototype"
-                            )
-                          }
+                          onClick={() => {
+                            setReplyTarget(review);
+                            setReplyBody("");
+                          }}
                         >
                           <ChatText size={14} className="mr-1.5" />
                           Reply
@@ -404,15 +653,15 @@ export default function ReviewsPage() {
                     </div>
                   </div>
 
-                  {/* Developer reply */}
-                  {review.reply && (
+                  {/* Developer response */}
+                  {review.response && (
                     <div className="rounded-lg border bg-muted/50 px-4 py-3 space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <p className="text-xs font-medium">
                             Developer response
                           </p>
-                          {review.reply.pending && (
+                          {review.response.state === "PENDING_PUBLISH" && (
                             <Badge
                               variant="outline"
                               className="text-[10px] px-1.5 py-0"
@@ -422,17 +671,18 @@ export default function ReviewsPage() {
                           )}
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(review.reply.date).toLocaleDateString(
-                            "en-GB",
-                            {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {new Date(
+                            review.response.lastModifiedDate,
+                          ).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </span>
                       </div>
-                      <p className="text-sm">{review.reply.body}</p>
+                      <p className="text-sm">
+                        {review.response.responseBody}
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -441,6 +691,135 @@ export default function ReviewsPage() {
           })}
         </div>
       )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                aria-disabled={safePage <= 1}
+                className={safePage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+              // Show first, last, current, and adjacent pages; ellipsis for gaps
+              if (
+                page === 1 ||
+                page === totalPages ||
+                Math.abs(page - safePage) <= 1
+              ) {
+                return (
+                  <PaginationItem key={page}>
+                    <PaginationLink
+                      isActive={page === safePage}
+                      onClick={() => setCurrentPage(page)}
+                      className="cursor-pointer"
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              }
+              // Show ellipsis only once per gap
+              if (page === 2 && safePage > 3) {
+                return (
+                  <PaginationItem key="ellipsis-start">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                );
+              }
+              if (page === totalPages - 1 && safePage < totalPages - 2) {
+                return (
+                  <PaginationItem key="ellipsis-end">
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                );
+              }
+              return null;
+            })}
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                aria-disabled={safePage >= totalPages}
+                className={safePage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+
+      {/* Reply dialog */}
+      <Dialog
+        open={!!replyTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReplyTarget(null);
+            setReplyBody("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reply to review</DialogTitle>
+            <DialogDescription>
+              Your response will be publicly visible on the App Store. It may
+              take up to 24 hours to appear after submission.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {replyTarget && (
+              <div className="rounded-lg border bg-muted/50 px-4 py-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Stars rating={replyTarget.rating} size={10} />
+                  <span className="text-xs text-muted-foreground">
+                    {replyTarget.reviewerNickname}
+                  </span>
+                </div>
+                <p className="text-sm font-medium">{replyTarget.title}</p>
+              </div>
+            )}
+            <Textarea
+              value={replyBody}
+              onChange={(e) => setReplyBody(e.target.value)}
+              placeholder="Write your response…"
+              className="min-h-[120px] font-mono text-sm"
+              maxLength={MAX_RESPONSE_LENGTH}
+            />
+            <p className="text-right text-xs text-muted-foreground tabular-nums">
+              {replyBody.length} / {MAX_RESPONSE_LENGTH}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReplyTarget(null);
+                setReplyBody("");
+              }}
+              disabled={replying}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReply}
+              disabled={replying || !replyBody.trim()}
+            >
+              {replying && (
+                <CircleNotch size={14} className="mr-1.5 animate-spin" />
+              )}
+              Send reply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI required dialog */}
+      <AIRequiredDialog
+        open={showAIRequired}
+        onOpenChange={setShowAIRequired}
+      />
     </div>
   );
 }

@@ -16,7 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   "store-listing": "Store listing",
   screenshots: "Screenshots",
   review: "App review",
-  reviews: "Reviews",
+  reviews: "Customer reviews",
   analytics: "Analytics",
   sales: "Sales",
   details: "App details",

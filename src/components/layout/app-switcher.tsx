@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { CaretUpDown } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { useApps } from "@/lib/apps-context";
@@ -22,12 +22,28 @@ import {
 
 export function AppSwitcher() {
   const router = useRouter();
+  const pathname = usePathname();
   const { appId } = useParams<{ appId?: string }>();
   const { isMobile } = useSidebar();
   const { apps, loading } = useApps();
   const { guardNavigation } = useFormDirty();
 
   const activeApp = apps.find((a) => a.id === appId);
+
+  /** Subpages that persist across app switches (Insights + TestFlight). */
+  const STICKY_SUBPAGES = new Set([
+    "reviews", "analytics", "sales", "testflight",
+  ]);
+
+  function buildAppUrl(targetAppId: string): string {
+    if (!appId) return `/dashboard/apps/${targetAppId}`;
+    const subpath = pathname.replace(`/dashboard/apps/${appId}`, "").replace(/^\//, "");
+    const topSegment = subpath.split("/")[0];
+    if (topSegment && STICKY_SUBPAGES.has(topSegment)) {
+      return `/dashboard/apps/${targetAppId}/${subpath}`;
+    }
+    return `/dashboard/apps/${targetAppId}`;
+  }
 
   return (
     <SidebarMenu>
@@ -75,7 +91,7 @@ export function AppSwitcher() {
             {apps.map((app) => (
               <DropdownMenuItem
                 key={app.id}
-                onClick={() => guardNavigation(() => router.push(`/dashboard/apps/${app.id}`))}
+                onClick={() => guardNavigation(() => router.push(buildAppUrl(app.id)))}
                 className="gap-2 p-2"
               >
                 <AppIcon
