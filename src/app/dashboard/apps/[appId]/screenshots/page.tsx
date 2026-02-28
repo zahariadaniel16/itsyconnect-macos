@@ -6,6 +6,7 @@ import {
   CaretLeft,
   CaretRight,
   CloudArrowUp,
+  DownloadSimple,
   Plus,
   WarningCircle,
   X,
@@ -143,6 +144,18 @@ function SortableScreenshot({
           </div>
         )}
       </div>
+
+      {/* Download button */}
+      {isComplete && hasToken && (
+        <a
+          href={`/api/screenshot-download?url=${encodeURIComponent(screenshotImageUrl(screenshot.attributes.assetToken!, 4000))}&name=${encodeURIComponent(screenshot.attributes.fileName)}`}
+          download={screenshot.attributes.fileName}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-1 left-1 hidden rounded-full bg-foreground/70 p-1 text-background shadow-sm hover:bg-foreground/90 group-hover:block"
+        >
+          <DownloadSimple size={12} />
+        </a>
+      )}
 
       {/* Delete button */}
       {!readOnly && (
