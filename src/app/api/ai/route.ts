@@ -5,6 +5,8 @@ import { getLanguageModel } from "@/lib/ai/provider-factory";
 import {
   buildTranslatePrompt,
   buildImprovePrompt,
+  buildReplyPrompt,
+  buildAppealPrompt,
   buildGenerateKeywordsPrompt,
   buildOptimizeKeywordsPrompt,
   buildFillKeywordGapsPrompt,
@@ -53,9 +55,13 @@ const requestSchema = z.object({
     "generate-keywords",
     "optimize-keywords",
     "fill-keyword-gaps",
+    "draft-reply",
+    "draft-appeal",
   ]),
   text: z.string(),
-  field: z.string(),
+  field: z.string().optional(),
+  reviewTitle: z.string().optional(),
+  rating: z.number().optional(),
   fromLocale: z.string().optional(),
   toLocale: z.string().optional(),
   locale: z.string().optional(),
@@ -80,7 +86,7 @@ export async function POST(request: Request) {
   }
 
   const {
-    action, text, field, fromLocale, toLocale, locale,
+    action, text, field, reviewTitle, rating, fromLocale, toLocale, locale,
     appName, charLimit, description, otherLocaleKeywords,
   } = parsed.data;
 
@@ -99,7 +105,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const context = { field, appName, charLimit };
+  const context = { field: field ?? "", appName, charLimit };
 
   let prompt: string;
   switch (action) {
@@ -153,13 +159,23 @@ export async function POST(request: Request) {
       prompt = buildFillKeywordGapsPrompt(text, locale, otherLocaleKeywords ?? {}, context);
       break;
     }
+    case "draft-reply": {
+      prompt = buildReplyPrompt(reviewTitle ?? "", text, rating ?? 3, appName);
+      break;
+    }
+    case "draft-appeal": {
+      prompt = buildAppealPrompt(reviewTitle ?? "", text, rating ?? 1, appName);
+      break;
+    }
   }
 
   try {
+    const needsVariety = action === "draft-reply" || action === "draft-appeal";
     const { text: result } = await generateText({
       model,
       system: "You are a text-processing tool. Output ONLY the final result as plain text with no preamble, explanation, or commentary. Never use markdown, HTML, or any formatting syntax. Never refuse or ask questions.",
       prompt,
+      temperature: needsVariety ? 0.9 : 0,
     });
 
     // Detect conversational responses that slipped through the prompt constraints
@@ -171,7 +187,7 @@ export async function POST(request: Request) {
     }
 
     // Enforce character limit as a safety net – LLMs don't always respect prompt constraints
-    const finalResult = charLimit ? truncateToLimit(result, charLimit, field) : result;
+    const finalResult = charLimit ? truncateToLimit(result, charLimit, field ?? "") : result;
 
     return NextResponse.json({ result: finalResult });
   } catch (err) {

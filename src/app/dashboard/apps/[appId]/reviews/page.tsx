@@ -39,6 +39,10 @@ import {
   Translate,
   CircleNotch,
   ArrowClockwise,
+  MagicWand,
+  PencilSimple,
+  Copy,
+  Trash,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { useApps } from "@/lib/apps-context";
@@ -241,6 +245,16 @@ export default function ReviewsPage() {
   const [replyTarget, setReplyTarget] = useState<Review | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [replying, setReplying] = useState(false);
+  const [editingResponseId, setEditingResponseId] = useState<string | null>(null);
+  const [draftingReply, setDraftingReply] = useState(false);
+
+  // Delete response
+  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
+
+  // Appeal dialog
+  const [appealTarget, setAppealTarget] = useState<Review | null>(null);
+  const [appealText, setAppealText] = useState("");
+  const [appealLoading, setAppealLoading] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -249,13 +263,12 @@ export default function ReviewsPage() {
   // AI required dialog
   const [showAIRequired, setShowAIRequired] = useState(false);
 
-  const fetchReviews = useCallback(async () => {
+  const fetchReviews = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/apps/${appId}/reviews?sort=${sortBy}`,
-      );
+      const url = `/api/apps/${appId}/reviews?sort=${sortBy}${forceRefresh ? "&refresh=1" : ""}`;
+      const res = await fetch(url);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `Failed to fetch reviews (${res.status})`);
@@ -278,8 +291,9 @@ export default function ReviewsPage() {
     fetchReviews();
   }, [fetchReviews]);
 
-  // Register with header refresh button
-  useRegisterRefresh({ onRefresh: fetchReviews, busy: loading });
+  // Register with header refresh button – force refresh from ASC
+  const handleRefresh = useCallback(() => fetchReviews(true), [fetchReviews]);
+  useRegisterRefresh({ onRefresh: handleRefresh, busy: loading });
 
   // Client-side filtering (sort is server-side via API)
   const territories = useMemo(
@@ -392,31 +406,40 @@ export default function ReviewsPage() {
 
     setReplying(true);
     try {
+      const isEdit = !!editingResponseId;
       const res = await fetch(`/api/apps/${appId}/reviews`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "reply",
-          reviewId: replyTarget.id,
-          responseBody: replyBody.trim(),
-        }),
+        body: JSON.stringify(
+          isEdit
+            ? {
+                action: "update",
+                responseId: editingResponseId,
+                responseBody: replyBody.trim(),
+              }
+            : {
+                action: "reply",
+                reviewId: replyTarget.id,
+                responseBody: replyBody.trim(),
+              },
+        ),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to send reply");
+        throw new Error(data.error ?? (isEdit ? "Failed to update reply" : "Failed to send reply"));
       }
 
       const data = await res.json();
 
-      // Update local state to show pending response immediately
+      // Update local state optimistically
       setReviews((prev) =>
         prev.map((r) =>
           r.id === replyTarget.id
             ? {
                 ...r,
                 response: {
-                  id: data.responseId ?? "pending",
+                  id: isEdit ? editingResponseId! : (data.responseId ?? "pending"),
                   responseBody: replyBody.trim(),
                   lastModifiedDate: new Date().toISOString(),
                   state: "PENDING_PUBLISH" as const,
@@ -426,9 +449,14 @@ export default function ReviewsPage() {
         ),
       );
 
-      toast.success("Reply sent – it may take up to 24 hours to appear on the App Store");
+      toast.success(
+        isEdit
+          ? "Reply updated – it may take up to 24 hours to appear on the App Store"
+          : "Reply sent – it may take up to 24 hours to appear on the App Store",
+      );
       setReplyTarget(null);
       setReplyBody("");
+      setEditingResponseId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send reply");
     } finally {
@@ -436,9 +464,125 @@ export default function ReviewsPage() {
     }
   }
 
-  function handleAppeal() {
-    window.open("https://appstoreconnect.apple.com", "_blank");
-    toast.info("Use App Store Connect to report concerns about this review");
+  async function handleDraftReply() {
+    if (!replyTarget) return;
+    if (!aiConfigured) {
+      setShowAIRequired(true);
+      return;
+    }
+
+    setDraftingReply(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "draft-reply",
+          text: replyTarget.body,
+          reviewTitle: replyTarget.title,
+          rating: replyTarget.rating,
+          appName: app?.name,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error === "ai_not_configured") {
+          setShowAIRequired(true);
+          return;
+        }
+        throw new Error(data.error ?? "Failed to generate reply");
+      }
+
+      const { result } = await res.json();
+      setReplyBody(result);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate reply");
+    } finally {
+      setDraftingReply(false);
+    }
+  }
+
+  async function handleAppeal(review: Review) {
+    if (!aiConfigured) {
+      setShowAIRequired(true);
+      return;
+    }
+
+    setAppealTarget(review);
+    setAppealText("");
+    setAppealLoading(true);
+
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "draft-appeal",
+          text: review.body,
+          reviewTitle: review.title,
+          rating: review.rating,
+          appName: app?.name,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error === "ai_not_configured") {
+          setAppealTarget(null);
+          setShowAIRequired(true);
+          return;
+        }
+        throw new Error(data.error ?? "Failed to generate appeal");
+      }
+
+      const { result } = await res.json();
+      setAppealText(result);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate appeal");
+      setAppealTarget(null);
+    } finally {
+      setAppealLoading(false);
+    }
+  }
+
+  async function handleCopyAndOpenASC() {
+    try {
+      await navigator.clipboard.writeText(appealText);
+      window.open("https://appstoreconnect.apple.com", "_blank");
+      toast.success("Appeal text copied to clipboard");
+      setAppealTarget(null);
+      setAppealText("");
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
+  }
+
+  async function handleDeleteResponse(reviewId: string, responseId: string) {
+    setDeletingResponseId(responseId);
+    try {
+      const res = await fetch(`/api/apps/${appId}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", responseId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to delete response");
+      }
+
+      setReviews((prev) =>
+        prev.map((r) =>
+          r.id === reviewId ? { ...r, response: undefined } : r,
+        ),
+      );
+      toast.success("Response deleted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete response");
+    } finally {
+      setDeletingResponseId(null);
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────
@@ -463,7 +607,7 @@ export default function ReviewsPage() {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
         <p>{error}</p>
-        <Button variant="outline" size="sm" onClick={fetchReviews}>
+        <Button variant="outline" size="sm" onClick={() => fetchReviews()}>
           <ArrowClockwise size={14} className="mr-1.5" />
           Retry
         </Button>
@@ -635,10 +779,10 @@ export default function ReviewsPage() {
                           variant="ghost"
                           size="sm"
                           className="text-muted-foreground"
-                          onClick={handleAppeal}
+                          onClick={() => handleAppeal(review)}
                         >
                           <WarningCircle size={14} className="mr-1.5" />
-                          Report concern
+                          Appeal review
                         </Button>
                       )}
                       {!review.response && (
@@ -674,15 +818,42 @@ export default function ReviewsPage() {
                             </Badge>
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(
-                            review.response.lastModifiedDate,
-                          ).toLocaleDateString("en-GB", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground"
+                            onClick={() => {
+                              setReplyTarget(review);
+                              setReplyBody(review.response!.responseBody);
+                              setEditingResponseId(review.response!.id);
+                            }}
+                          >
+                            <PencilSimple size={12} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDeleteResponse(review.id, review.response!.id)}
+                            disabled={deletingResponseId === review.response!.id}
+                          >
+                            {deletingResponseId === review.response!.id ? (
+                              <CircleNotch size={12} className="animate-spin" />
+                            ) : (
+                              <Trash size={12} />
+                            )}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(
+                              review.response.lastModifiedDate,
+                            ).toLocaleDateString("en-GB", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-sm">
                         {review.response.responseBody}
@@ -761,12 +932,15 @@ export default function ReviewsPage() {
           if (!open) {
             setReplyTarget(null);
             setReplyBody("");
+            setEditingResponseId(null);
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reply to review</DialogTitle>
+            <DialogTitle>
+              {editingResponseId ? "Edit reply" : "Reply to review"}
+            </DialogTitle>
             <DialogDescription>
               Your response will be publicly visible on the App Store. It may
               take up to 24 hours to appear after submission.
@@ -788,32 +962,113 @@ export default function ReviewsPage() {
               value={replyBody}
               onChange={(e) => setReplyBody(e.target.value)}
               placeholder="Write your response…"
-              className="min-h-[120px] font-mono text-sm"
+              className="min-h-[120px] max-h-[40vh] font-mono text-sm"
               maxLength={MAX_RESPONSE_LENGTH}
             />
             <p className="text-right text-xs text-muted-foreground tabular-nums">
               {replyBody.length} / {MAX_RESPONSE_LENGTH}
             </p>
           </div>
+          <DialogFooter className="flex w-full items-center sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDraftReply}
+              disabled={draftingReply}
+            >
+              {draftingReply ? (
+                <CircleNotch size={14} className="mr-1.5 animate-spin" />
+              ) : (
+                <MagicWand size={14} className="mr-1.5" />
+              )}
+              Help me write
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReplyTarget(null);
+                  setReplyBody("");
+                  setEditingResponseId(null);
+                }}
+                disabled={replying}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReply}
+                disabled={replying || !replyBody.trim()}
+              >
+                {replying && (
+                  <CircleNotch size={14} className="mr-1.5 animate-spin" />
+                )}
+                {editingResponseId ? "Update reply" : "Send reply"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Appeal dialog */}
+      <Dialog
+        open={!!appealTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAppealTarget(null);
+            setAppealText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Appeal review</DialogTitle>
+            <DialogDescription>
+              AI-generated appeal text based on the review. Edit if needed, then
+              copy and submit via App Store Connect.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {appealTarget && (
+              <div className="rounded-lg border bg-muted/50 px-4 py-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Stars rating={appealTarget.rating} size={10} />
+                  <span className="text-xs text-muted-foreground">
+                    {appealTarget.reviewerNickname}
+                  </span>
+                </div>
+                <p className="text-sm font-medium">{appealTarget.title}</p>
+                <p className="text-sm text-muted-foreground">{appealTarget.body}</p>
+              </div>
+            )}
+            {appealLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <CircleNotch size={20} className="animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Textarea
+                value={appealText}
+                onChange={(e) => setAppealText(e.target.value)}
+                placeholder="Appeal text will appear here…"
+                className="min-h-[160px] max-h-[40vh] font-mono text-sm"
+              />
+            )}
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
-                setReplyTarget(null);
-                setReplyBody("");
+                setAppealTarget(null);
+                setAppealText("");
               }}
-              disabled={replying}
             >
               Cancel
             </Button>
             <Button
-              onClick={handleReply}
-              disabled={replying || !replyBody.trim()}
+              onClick={handleCopyAndOpenASC}
+              disabled={appealLoading || !appealText.trim()}
             >
-              {replying && (
-                <CircleNotch size={14} className="mr-1.5 animate-spin" />
-              )}
-              Send reply
+              <Copy size={14} className="mr-1.5" />
+              Copy &amp; open App Store Connect
             </Button>
           </DialogFooter>
         </DialogContent>

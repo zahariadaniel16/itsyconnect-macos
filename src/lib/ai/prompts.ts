@@ -178,6 +178,74 @@ Tasks:
   return prompt;
 }
 
+// --- Review reply / appeal prompts ---
+
+export function buildReplyPrompt(
+  reviewTitle: string,
+  reviewBody: string,
+  rating: number,
+  appName?: string,
+): string {
+  let prompt = `Write a professional developer response to the following App Store review (${rating}-star rating).`;
+
+  if (appName) {
+    prompt += `\nThe app is called "${appName}".`;
+  }
+
+  prompt += `
+
+Rules:
+- Be empathetic but brief – 2 to 4 short sentences maximum.
+- Address the specific concern directly, do not repeat or paraphrase the review back to the user.
+- If negative, suggest the user reach out to support but never invent email addresses, URLs, or other details you do not know.
+- If positive, a short sincere thank-you is enough.
+- Vary your opening – write like a real human, not a template. Every reply should feel unique and natural.
+- Use en dashes (–), never em dashes (—).
+- Plain text only – no markdown, no HTML, no formatting syntax.`;
+
+  prompt += OUTPUT_CONSTRAINT;
+
+  prompt += `
+
+Review title: ${reviewTitle}
+Review body: ${reviewBody}`;
+
+  return prompt;
+}
+
+export function buildAppealPrompt(
+  reviewTitle: string,
+  reviewBody: string,
+  rating: number,
+  appName?: string,
+): string {
+  let prompt = `Write an appeal text to submit to Apple for the following App Store review (${rating}-star rating) that may violate App Store Review Guidelines.`;
+
+  if (appName) {
+    prompt += `\nThe app is called "${appName}".`;
+  }
+
+  prompt += `
+
+Rules:
+- Be factual and professional – this is addressed to the App Store review team.
+- Explain why the review may violate Apple's App Store Review Guidelines (e.g. spam, offensive content, irrelevant, competitor sabotage, factually incorrect claims).
+- Reference specific guideline sections where applicable.
+- Do NOT be aggressive or accusatory – present evidence calmly.
+- Keep the appeal concise and focused.
+- Use en dashes (–), never em dashes (—).
+- Plain text only – no markdown, no HTML, no formatting syntax.`;
+
+  prompt += OUTPUT_CONSTRAINT;
+
+  prompt += `
+
+Review title: ${reviewTitle}
+Review body: ${reviewBody}`;
+
+  return prompt;
+}
+
 export function buildImprovePrompt(
   text: string,
   locale: string,

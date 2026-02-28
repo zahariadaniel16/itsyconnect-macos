@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { listCustomerReviews, createReviewResponse, deleteReviewResponse, invalidateReviewsCache } from "@/lib/asc/reviews";
+import { listCustomerReviews, createReviewResponse, updateReviewResponse, deleteReviewResponse, invalidateReviewsCache } from "@/lib/asc/reviews";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { getMockCustomerReviews } from "@/lib/mock-reviews";
@@ -23,6 +23,8 @@ export async function GET(
   const sortParam = url.searchParams.get("sort") ?? "newest";
   const sort = SORT_MAP[sortParam] ?? "-createdDate";
 
+  const forceRefresh = url.searchParams.get("refresh") === "1";
+
   if (!hasCredentials()) {
     // Demo mode: return mock data
     const mockReviews = getMockCustomerReviews(appId);
@@ -30,7 +32,7 @@ export async function GET(
   }
 
   try {
-    const reviews = await listCustomerReviews(appId, sort);
+    const reviews = await listCustomerReviews(appId, sort, forceRefresh);
     const meta = cacheGetMeta(`reviews:${appId}:${sort}`);
     return NextResponse.json({ reviews, meta });
   } catch (err) {
@@ -45,12 +47,18 @@ const replySchema = z.object({
   responseBody: z.string().min(1).max(MAX_RESPONSE_LENGTH),
 });
 
+const updateSchema = z.object({
+  action: z.literal("update"),
+  responseId: z.string().min(1),
+  responseBody: z.string().min(1).max(MAX_RESPONSE_LENGTH),
+});
+
 const deleteSchema = z.object({
   action: z.literal("delete"),
   responseId: z.string().min(1),
 });
 
-const postSchema = z.discriminatedUnion("action", [replySchema, deleteSchema]);
+const postSchema = z.discriminatedUnion("action", [replySchema, updateSchema, deleteSchema]);
 
 export async function POST(
   request: Request,
@@ -83,6 +91,15 @@ export async function POST(
       );
       invalidateReviewsCache(appId);
       return NextResponse.json({ ok: true, responseId: result.id });
+    }
+
+    if (parsed.data.action === "update") {
+      await updateReviewResponse(
+        parsed.data.responseId,
+        parsed.data.responseBody,
+      );
+      invalidateReviewsCache(appId);
+      return NextResponse.json({ ok: true });
     }
 
     // delete
