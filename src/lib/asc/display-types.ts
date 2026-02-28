@@ -1,4 +1,5 @@
 export const DISPLAY_TYPE_LABELS: Record<string, string> = {
+  // iPhone
   APP_IPHONE_67: 'iPhone 6.7"',
   APP_IPHONE_61: 'iPhone 6.1"',
   APP_IPHONE_65: 'iPhone 6.5"',
@@ -7,18 +8,41 @@ export const DISPLAY_TYPE_LABELS: Record<string, string> = {
   APP_IPHONE_47: 'iPhone 4.7"',
   APP_IPHONE_40: 'iPhone 4"',
   APP_IPHONE_35: 'iPhone 3.5"',
+  // iPad
   APP_IPAD_PRO_3GEN_129: 'iPad Pro 12.9"',
   APP_IPAD_PRO_3GEN_11: 'iPad Pro 11"',
   APP_IPAD_PRO_129: 'iPad Pro 12.9" (2nd)',
   APP_IPAD_105: 'iPad 10.5"',
   APP_IPAD_97: 'iPad 9.7"',
+  // Apple Watch
+  APP_WATCH_ULTRA: "Apple Watch Ultra",
+  APP_WATCH_SERIES_10: "Apple Watch Series 10",
+  APP_WATCH_SERIES_7: "Apple Watch Series 7",
+  APP_WATCH_SERIES_4: "Apple Watch Series 4",
+  APP_WATCH_SERIES_3: "Apple Watch Series 3",
+  // Other
   APP_DESKTOP: "Mac",
   APP_APPLE_TV: "Apple TV",
   APP_APPLE_VISION_PRO: "Apple Vision Pro",
+  // iMessage – iPhone
+  IMESSAGE_APP_IPHONE_67: 'iMessage iPhone 6.7"',
+  IMESSAGE_APP_IPHONE_65: 'iMessage iPhone 6.5"',
+  IMESSAGE_APP_IPHONE_61: 'iMessage iPhone 6.1"',
+  IMESSAGE_APP_IPHONE_58: 'iMessage iPhone 5.8"',
+  IMESSAGE_APP_IPHONE_55: 'iMessage iPhone 5.5"',
+  IMESSAGE_APP_IPHONE_47: 'iMessage iPhone 4.7"',
+  IMESSAGE_APP_IPHONE_40: 'iMessage iPhone 4"',
+  // iMessage – iPad
+  IMESSAGE_APP_IPAD_PRO_3GEN_129: 'iMessage iPad Pro 12.9"',
+  IMESSAGE_APP_IPAD_PRO_3GEN_11: 'iMessage iPad Pro 11"',
+  IMESSAGE_APP_IPAD_PRO_129: 'iMessage iPad Pro 12.9" (2nd)',
+  IMESSAGE_APP_IPAD_105: 'iMessage iPad 10.5"',
+  IMESSAGE_APP_IPAD_97: 'iMessage iPad 9.7"',
 };
 
 /** Primary portrait resolution for each display type (width × height). */
 export const DISPLAY_TYPE_SIZES: Record<string, string> = {
+  // iPhone
   APP_IPHONE_67: "1290 × 2796",
   APP_IPHONE_61: "1170 × 2532",
   APP_IPHONE_65: "1284 × 2778",
@@ -27,11 +51,19 @@ export const DISPLAY_TYPE_SIZES: Record<string, string> = {
   APP_IPHONE_47: "750 × 1334",
   APP_IPHONE_40: "640 × 1136",
   APP_IPHONE_35: "640 × 960",
+  // iPad
   APP_IPAD_PRO_3GEN_129: "2048 × 2732",
   APP_IPAD_PRO_3GEN_11: "1668 × 2388",
   APP_IPAD_PRO_129: "2048 × 2732",
   APP_IPAD_105: "1668 × 2224",
   APP_IPAD_97: "1536 × 2048",
+  // Apple Watch
+  APP_WATCH_ULTRA: "410 × 502",
+  APP_WATCH_SERIES_10: "416 × 496",
+  APP_WATCH_SERIES_7: "396 × 484",
+  APP_WATCH_SERIES_4: "368 × 448",
+  APP_WATCH_SERIES_3: "312 × 390",
+  // Other
   APP_DESKTOP: "2880 × 1800",
   APP_APPLE_TV: "1920 × 1080",
   APP_APPLE_VISION_PRO: "3840 × 2160",
@@ -39,6 +71,7 @@ export const DISPLAY_TYPE_SIZES: Record<string, string> = {
 
 /** Consistent display order for screenshot sets. Types not listed sort to end alphabetically. */
 export const DISPLAY_TYPE_ORDER: string[] = [
+  // iPhone
   "APP_IPHONE_67",
   "APP_IPHONE_61",
   "APP_IPHONE_65",
@@ -47,18 +80,47 @@ export const DISPLAY_TYPE_ORDER: string[] = [
   "APP_IPHONE_47",
   "APP_IPHONE_40",
   "APP_IPHONE_35",
+  // iPad
   "APP_IPAD_PRO_3GEN_129",
   "APP_IPAD_PRO_3GEN_11",
   "APP_IPAD_PRO_129",
   "APP_IPAD_105",
   "APP_IPAD_97",
+  // Apple Watch
+  "APP_WATCH_ULTRA",
+  "APP_WATCH_SERIES_10",
+  "APP_WATCH_SERIES_7",
+  "APP_WATCH_SERIES_4",
+  "APP_WATCH_SERIES_3",
+  // Other
   "APP_DESKTOP",
   "APP_APPLE_TV",
   "APP_APPLE_VISION_PRO",
+  // iMessage – iPhone
+  "IMESSAGE_APP_IPHONE_67",
+  "IMESSAGE_APP_IPHONE_65",
+  "IMESSAGE_APP_IPHONE_61",
+  "IMESSAGE_APP_IPHONE_58",
+  "IMESSAGE_APP_IPHONE_55",
+  "IMESSAGE_APP_IPHONE_47",
+  "IMESSAGE_APP_IPHONE_40",
+  // iMessage – iPad
+  "IMESSAGE_APP_IPAD_PRO_3GEN_129",
+  "IMESSAGE_APP_IPAD_PRO_3GEN_11",
+  "IMESSAGE_APP_IPAD_PRO_129",
+  "IMESSAGE_APP_IPAD_105",
+  "IMESSAGE_APP_IPAD_97",
 ];
 
 /** Device categories group display types for the tab bar. */
-export type DeviceCategory = "iPhone" | "iPad" | "Mac" | "Apple TV" | "Apple Vision Pro";
+export type DeviceCategory =
+  | "iPhone"
+  | "iPad"
+  | "Apple Watch"
+  | "iMessage"
+  | "Mac"
+  | "Apple TV"
+  | "Apple Vision Pro";
 
 export const DEVICE_CATEGORY_TYPES: Record<DeviceCategory, string[]> = {
   iPhone: [
@@ -78,6 +140,27 @@ export const DEVICE_CATEGORY_TYPES: Record<DeviceCategory, string[]> = {
     "APP_IPAD_105",
     "APP_IPAD_97",
   ],
+  "Apple Watch": [
+    "APP_WATCH_ULTRA",
+    "APP_WATCH_SERIES_10",
+    "APP_WATCH_SERIES_7",
+    "APP_WATCH_SERIES_4",
+    "APP_WATCH_SERIES_3",
+  ],
+  iMessage: [
+    "IMESSAGE_APP_IPHONE_67",
+    "IMESSAGE_APP_IPHONE_65",
+    "IMESSAGE_APP_IPHONE_61",
+    "IMESSAGE_APP_IPHONE_58",
+    "IMESSAGE_APP_IPHONE_55",
+    "IMESSAGE_APP_IPHONE_47",
+    "IMESSAGE_APP_IPHONE_40",
+    "IMESSAGE_APP_IPAD_PRO_3GEN_129",
+    "IMESSAGE_APP_IPAD_PRO_3GEN_11",
+    "IMESSAGE_APP_IPAD_PRO_129",
+    "IMESSAGE_APP_IPAD_105",
+    "IMESSAGE_APP_IPAD_97",
+  ],
   Mac: ["APP_DESKTOP"],
   "Apple TV": ["APP_APPLE_TV"],
   "Apple Vision Pro": ["APP_APPLE_VISION_PRO"],
@@ -85,7 +168,7 @@ export const DEVICE_CATEGORY_TYPES: Record<DeviceCategory, string[]> = {
 
 /** Maps ASC platform codes to the device categories available for that platform. */
 export const PLATFORM_DEVICE_CATEGORIES: Record<string, DeviceCategory[]> = {
-  IOS: ["iPhone", "iPad"],
+  IOS: ["iPhone", "iPad", "Apple Watch"],
   MAC_OS: ["Mac"],
   TV_OS: ["Apple TV"],
   VISION_OS: ["Apple Vision Pro"],
