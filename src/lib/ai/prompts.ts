@@ -195,11 +195,8 @@ export function buildReplyPrompt(
   prompt += `
 
 Rules:
-- Be empathetic but brief – 2 to 4 short sentences maximum.
-- Address the specific concern directly, do not repeat or paraphrase the review back to the user.
-- If negative, suggest the user reach out to support but never invent email addresses, URLs, or other details you do not know.
-- If positive, a short sincere thank-you is enough.
-- Vary your opening – write like a real human, not a template. Every reply should feel unique and natural.
+- Be polite but succinct – 2 to 3 short sentences maximum.
+- Do not invent support e-mail details or anything you don't know for sure.
 - Use en dashes (–), never em dashes (—).
 - Plain text only – no markdown, no HTML, no formatting syntax.`;
 
