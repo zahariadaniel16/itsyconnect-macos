@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -64,7 +65,7 @@ export function DashboardBreadcrumb() {
         <>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem className="hidden md:block">
-            <BreadcrumbLink href={`${tfBase}/groups`}>Groups</BreadcrumbLink>
+            <BreadcrumbLink asChild><Link href={`${tfBase}/groups`}>Groups</Link></BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem>
@@ -80,7 +81,7 @@ export function DashboardBreadcrumb() {
         <>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem className="hidden md:block">
-            <BreadcrumbLink href={`${tfBase}/feedback`}>Feedback</BreadcrumbLink>
+            <BreadcrumbLink asChild><Link href={`${tfBase}/feedback`}>Feedback</Link></BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem>
@@ -112,7 +113,7 @@ export function DashboardBreadcrumb() {
         <>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem className="hidden md:block">
-            <BreadcrumbLink href={buildsHref}>Builds</BreadcrumbLink>
+            <BreadcrumbLink asChild><Link href={buildsHref}>Builds</Link></BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem>
@@ -143,8 +144,10 @@ export function DashboardBreadcrumb() {
         ) : app ? (
           <>
             <BreadcrumbItem className="hidden md:block">
-              <BreadcrumbLink href={`/dashboard/apps/${app.id}`}>
-                {app.name.length > 10 ? `${app.name.slice(0, 10)}…` : app.name}
+              <BreadcrumbLink asChild>
+                <Link href={`/dashboard/apps/${app.id}`}>
+                  {app.name.length > 10 ? `${app.name.slice(0, 10)}…` : app.name}
+                </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {pageSegment === "testflight" ? (
