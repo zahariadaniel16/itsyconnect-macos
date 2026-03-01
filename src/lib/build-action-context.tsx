@@ -7,6 +7,7 @@ export interface BuildActionState {
   buildId: string;
   status: string;
   hasWhatsNew: boolean;
+  hasExternalGroup: boolean;
   whatsNew: string;
   localizationId: string | null;
 }

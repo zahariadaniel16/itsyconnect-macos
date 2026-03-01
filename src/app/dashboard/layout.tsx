@@ -5,9 +5,28 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DashboardBreadcrumb } from "@/components/layout/dashboard-breadcrumb";
-import { HeaderVersionPicker, HeaderVersionActions, HeaderRefreshButton } from "@/components/layout/header-version-picker";
-import { HeaderBuildsPicker } from "@/components/layout/header-builds-picker";
-import { HeaderLocalePicker } from "@/components/layout/header-locale-picker";
+import dynamic from "next/dynamic";
+
+const HeaderVersionPicker = dynamic(
+  () => import("@/components/layout/header-version-picker").then(m => ({ default: m.HeaderVersionPicker })),
+  { ssr: false },
+);
+const HeaderVersionActions = dynamic(
+  () => import("@/components/layout/header-version-picker").then(m => ({ default: m.HeaderVersionActions })),
+  { ssr: false },
+);
+const HeaderRefreshButton = dynamic(
+  () => import("@/components/layout/header-version-picker").then(m => ({ default: m.HeaderRefreshButton })),
+  { ssr: false },
+);
+const HeaderBuildsPicker = dynamic(
+  () => import("@/components/layout/header-builds-picker").then(m => ({ default: m.HeaderBuildsPicker })),
+  { ssr: false },
+);
+const HeaderLocalePicker = dynamic(
+  () => import("@/components/layout/header-locale-picker").then(m => ({ default: m.HeaderLocalePicker })),
+  { ssr: false },
+);
 import { VersionActionFooter } from "@/components/layout/version-action-footer";
 import { BuildActionFooter } from "@/components/layout/build-action-footer";
 import { AppsProvider, useApps } from "@/lib/apps-context";
@@ -102,7 +121,9 @@ export default function DashboardLayout({
           <Suspense>
             <VersionActionFooter />
           </Suspense>
-          <BuildActionFooter />
+          <Suspense>
+            <BuildActionFooter />
+          </Suspense>
         </SidebarInset>
       </SidebarProvider>
       </RefreshProvider>

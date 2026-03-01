@@ -112,17 +112,21 @@ export default function BuildDetailPage() {
   // Report build state to footer context
   useEffect(() => {
     if (build) {
+      const hasExternalGroup = build.groupIds.some(
+        (gid) => groups.find((g) => g.id === gid && !g.isInternal),
+      );
       reportBuildAction({
         appId,
         buildId,
         status: build.status,
         hasWhatsNew: (whatsNew?.length ?? 0) > 0,
+        hasExternalGroup,
         whatsNew,
         localizationId: build.whatsNewLocalizationId,
       });
     }
     return () => clearBuildAction();
-  }, [appId, buildId, build, whatsNew, reportBuildAction, clearBuildAction]);
+  }, [appId, buildId, build, groups, whatsNew, reportBuildAction, clearBuildAction]);
 
   useEffect(() => {
     registerRefresh(() => fetchData(true));

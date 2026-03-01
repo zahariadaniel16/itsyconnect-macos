@@ -18,9 +18,10 @@ import { toast } from "sonner";
 import { apiFetch } from "@/lib/api-fetch";
 import { useBuildAction } from "@/lib/build-action-context";
 
-function BetaSubmitChecklist({ hasWhatsNew }: { hasWhatsNew: boolean }) {
+function BetaSubmitChecklist({ hasWhatsNew, hasExternalGroup }: { hasWhatsNew: boolean; hasExternalGroup: boolean }) {
   const items = [
     { label: "What's new", done: hasWhatsNew },
+    { label: "External group", done: hasExternalGroup },
   ];
 
   return (
@@ -41,13 +42,13 @@ function BetaSubmitChecklist({ hasWhatsNew }: { hasWhatsNew: boolean }) {
 }
 
 export function BuildActionFooter() {
-  const { state, refresh, save } = useBuildAction();
+  const { state, refresh, save, clear } = useBuildAction();
   const [loading, setLoading] = useState<string | null>(null);
   const [expireOpen, setExpireOpen] = useState(false);
 
   if (!state) return null;
 
-  const { appId, buildId, status, hasWhatsNew } = state;
+  const { appId, buildId, status, hasWhatsNew, hasExternalGroup } = state;
   const base = `/api/apps/${appId}/testflight/builds/${buildId}`;
 
   async function act(action: string, successMsg: string) {
@@ -55,6 +56,7 @@ export function BuildActionFooter() {
     try {
       await apiFetch(`${base}/${action}`, { method: "POST" });
       toast.success(successMsg);
+      clear();
       refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Failed: ${action}`);
@@ -65,7 +67,7 @@ export function BuildActionFooter() {
 
   if (status === "Ready to submit") {
     return (
-      <Footer left={<BetaSubmitChecklist hasWhatsNew={hasWhatsNew} />}>
+      <Footer left={<BetaSubmitChecklist hasWhatsNew={hasWhatsNew} hasExternalGroup={hasExternalGroup} />}>
         <div className="flex items-center gap-2">
           <ExpireButton
             open={expireOpen}
@@ -74,13 +76,14 @@ export function BuildActionFooter() {
             onConfirm={() => act("expire", "Build expired")}
           />
           <Button
-            disabled={!hasWhatsNew || loading !== null}
+            disabled={!hasWhatsNew || !hasExternalGroup || loading !== null}
             onClick={async () => {
               setLoading("submit-for-review");
               try {
                 await save();
                 await apiFetch(`${base}/submit-for-review`, { method: "POST" });
                 toast.success("Submitted for beta review");
+                clear();
                 refresh();
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : "Failed to submit");
@@ -124,7 +127,17 @@ export function BuildActionFooter() {
           <Button
             variant="outline"
             disabled={loading !== null}
-            onClick={() => act("notify-testers", "Testers notified")}
+            onClick={async () => {
+              setLoading("notify-testers");
+              try {
+                const res = await apiFetch<{ autoNotified?: boolean }>(`${base}/notify-testers`, { method: "POST" });
+                toast.success(res.autoNotified ? "Testers already auto-notified" : "Testers notified");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Failed to notify testers");
+              } finally {
+                setLoading(null);
+              }
+            }}
           >
             {loading === "notify-testers"
               ? <Spinner className="mr-1.5" />

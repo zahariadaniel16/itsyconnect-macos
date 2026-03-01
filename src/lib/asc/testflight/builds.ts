@@ -313,16 +313,25 @@ export async function declareExportCompliance(
   cacheInvalidatePrefix("tf-builds:");
 }
 
-export async function notifyTesters(buildId: string): Promise<void> {
-  await ascFetch(`/v1/buildBetaNotifications`, {
-    method: "POST",
-    body: JSON.stringify({
-      data: {
-        type: "buildBetaNotifications",
-        relationships: {
-          build: { data: { type: "builds", id: buildId } },
+export async function notifyTesters(buildId: string): Promise<{ autoNotified: boolean }> {
+  try {
+    await ascFetch(`/v1/buildBetaNotifications`, {
+      method: "POST",
+      body: JSON.stringify({
+        data: {
+          type: "buildBetaNotifications",
+          relationships: {
+            build: { data: { type: "builds", id: buildId } },
+          },
         },
-      },
-    }),
-  });
+      }),
+    });
+    return { autoNotified: false };
+  } catch (err) {
+    // 409 means auto-notify is enabled – testers were already notified
+    if (err instanceof Error && err.message.includes("ASC API 409")) {
+      return { autoNotified: true };
+    }
+    throw err;
+  }
 }

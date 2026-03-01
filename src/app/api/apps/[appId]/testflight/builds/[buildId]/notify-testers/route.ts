@@ -13,8 +13,8 @@ export async function POST(
   }
 
   try {
-    await notifyTesters(buildId);
-    return NextResponse.json({ ok: true });
+    const result = await notifyTesters(buildId);
+    return NextResponse.json({ ok: true, autoNotified: result.autoNotified });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 502 });
