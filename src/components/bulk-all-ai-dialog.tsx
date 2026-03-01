@@ -247,7 +247,7 @@ export function BulkAllAIDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] !grid grid-rows-[auto_1fr_auto] gap-0">
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] !grid grid-rows-[auto_1fr_auto] gap-0">
         <DialogHeader className="pb-4">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
