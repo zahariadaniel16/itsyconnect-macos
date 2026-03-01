@@ -217,6 +217,46 @@ GET /v1/betaAppReviewDetails
                                   demoAccountName,demoAccountPassword,demoAccountRequired,notes
 ```
 
+### TestFlight feedback (screenshot and crash submissions)
+
+Two parallel endpoints for tester feedback – one for screenshot submissions, one for crash submissions. Both are JWT-authenticated and were introduced in ASC API v4.0.
+
+```
+GET /v1/apps/{appId}/betaFeedbackScreenshotSubmissions
+  include = build,tester
+  sort = -createdDate
+  limit = 200
+  fields[betaTesters] = firstName,lastName,email
+  fields[builds] = version
+
+GET /v1/apps/{appId}/betaFeedbackCrashSubmissions
+  include = build,tester
+  sort = -createdDate
+  limit = 200
+  fields[betaTesters] = firstName,lastName,email
+  fields[builds] = version
+```
+
+Shared attributes: `comment`, `email`, `createdDate`, `appPlatform`, `devicePlatform`, `deviceFamily`, `deviceModel`, `osVersion`, `locale`, `buildBundleId`, `architecture`, `connectionType` (WIFI/MOBILE_DATA/WIRE/UNKNOWN/NONE), `batteryPercentage`, `timeZone`, `pairedAppleWatch`, `appUptimeInMilliseconds`, `diskBytesAvailable`, `diskBytesTotal`, `screenWidthInPoints`, `screenHeightInPoints`
+
+Screenshot-specific: `screenshots` array – each with `url`, `width`, `height`, `expirationDate`
+
+Crash-specific: `crashLog` relationship linking to a `BetaCrashLog` resource:
+```
+GET /v1/betaFeedbackCrashSubmissions/{id}/crashLog
+```
+Returns `{ data: { attributes: { logText } } }`
+
+Supported filters: `appPlatform`, `build`, `build.preReleaseVersion`, `deviceModel`, `devicePlatform`, `osVersion`, `tester`
+
+Delete endpoints:
+```
+DELETE /v1/betaFeedbackScreenshotSubmissions/{id}
+DELETE /v1/betaFeedbackCrashSubmissions/{id}
+```
+
+**Implementation pattern:** fetch both endpoints in parallel, merge results, sort by `createdDate` descending. Cache with `tf-feedback:{appId}` key.
+
 ### Customer reviews
 
 ```

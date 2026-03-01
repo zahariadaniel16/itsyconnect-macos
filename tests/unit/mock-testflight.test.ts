@@ -166,8 +166,8 @@ describe("mock-testflight", () => {
       expect(feedback.length).toBeGreaterThan(0);
       for (let i = 1; i < feedback.length; i++) {
         expect(
-          new Date(feedback[i - 1].date).getTime(),
-        ).toBeGreaterThanOrEqual(new Date(feedback[i].date).getTime());
+          new Date(feedback[i - 1].createdDate).getTime(),
+        ).toBeGreaterThanOrEqual(new Date(feedback[i].createdDate).getTime());
       }
     });
 

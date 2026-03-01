@@ -4,6 +4,7 @@ export const BUILDS_TTL = 5 * 60 * 1000; // 5 min
 export const GROUPS_TTL = 15 * 60 * 1000; // 15 min
 export const GROUP_DETAIL_TTL = 5 * 60 * 1000; // 5 min
 export const INFO_TTL = 60 * 60 * 1000; // 1 hr
+export const FEEDBACK_TTL = 5 * 60 * 1000; // 5 min
 
 // ── Exported types (normalised, used by pages and API routes) ────
 
@@ -91,6 +92,45 @@ export interface TFGroupDetail {
   group: TFGroup;
   builds: TFBuild[];
   testers: TFTester[];
+}
+
+export interface TFScreenshotImage {
+  url: string;
+  width: number;
+  height: number;
+  expirationDate: string;
+}
+
+export interface TFFeedbackItem {
+  id: string;
+  type: "screenshot" | "crash";
+  comment: string | null;
+  email: string | null;
+  testerName: string | null;
+  createdDate: string;
+  // Build info
+  buildNumber: string | null;
+  buildBundleId: string | null;
+  // Device info
+  appPlatform: string | null;
+  devicePlatform: string | null;
+  deviceFamily: string | null;
+  deviceModel: string | null;
+  osVersion: string | null;
+  locale: string | null;
+  architecture: string | null;
+  connectionType: string | null;
+  batteryPercentage: number | null;
+  timeZone: string | null;
+  appUptimeMs: number | null;
+  diskBytesAvailable: number | null;
+  diskBytesTotal: number | null;
+  screenWidth: number | null;
+  screenHeight: number | null;
+  pairedAppleWatch: string | null;
+  // Type-specific
+  screenshots: TFScreenshotImage[];
+  hasCrashLog: boolean;
 }
 
 // ── Raw ASC response shapes ──────────────────────────────────────

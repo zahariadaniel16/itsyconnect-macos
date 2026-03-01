@@ -70,16 +70,30 @@ export interface MockFeedbackItem {
   id: string;
   appId: string;
   type: "screenshot" | "crash";
-  message: string;
+  comment: string;
   email: string;
-  platform: string;
-  versionString: string;
+  testerName: string | null;
+  createdDate: string;
   buildNumber: string;
-  bundleId: string;
-  device: string;
+  buildBundleId: string;
+  appPlatform: string;
+  devicePlatform: string | null;
+  deviceFamily: string | null;
+  deviceModel: string;
+  osVersion: string;
   locale: string;
-  battery: number;
-  date: string;
+  architecture: string;
+  connectionType: string;
+  batteryPercentage: number;
+  timeZone: string;
+  appUptimeMs: number;
+  diskBytesAvailable: number;
+  diskBytesTotal: number;
+  screenWidth: number;
+  screenHeight: number;
+  pairedAppleWatch: string | null;
+  screenshots: Array<{ url: string; width: number; height: number; expirationDate: string }>;
+  hasCrashLog: boolean;
 }
 
 // ---------- Builds ----------
@@ -478,97 +492,181 @@ export const MOCK_FEEDBACK: MockFeedbackItem[] = [
     id: "fb-001",
     appId: "app-001",
     type: "screenshot",
-    message:
+    comment:
       "The precipitation graph overlaps the temperature label when the hourly forecast has more than 12 hours visible. See attached screenshot.",
     email: "nick@example.com",
-    platform: "iOS 19.3",
-    versionString: "2.1.0",
+    testerName: "Nick Ustinov",
+    createdDate: "2026-02-25T09:15:00Z",
     buildNumber: "142",
-    bundleId: "com.example.weatherly",
-    device: "iPhone 16 Pro",
-    locale: "English (United States)",
-    battery: 72,
-    date: "2026-02-25T09:15:00Z",
+    buildBundleId: "com.example.weatherly",
+    appPlatform: "IOS",
+    devicePlatform: "IOS",
+    deviceFamily: "IPHONE",
+    deviceModel: "iPhone 16 Pro",
+    osVersion: "19.3",
+    locale: "en_US",
+    architecture: "arm64e",
+    connectionType: "WIFI",
+    batteryPercentage: 72,
+    timeZone: "America/New_York",
+    appUptimeMs: 342000,
+    diskBytesAvailable: 48_000_000_000,
+    diskBytesTotal: 128_000_000_000,
+    screenWidth: 393,
+    screenHeight: 852,
+    pairedAppleWatch: null,
+    screenshots: [],
+    hasCrashLog: false,
   },
   {
     id: "fb-002",
     appId: "app-001",
     type: "crash",
-    message:
+    comment:
       "Crash when switching from radar to satellite view while downloading map tiles. Happens every time on WiFi.",
     email: "james.w@example.com",
-    platform: "iOS 19.3",
-    versionString: "2.1.0",
+    testerName: "James Wright",
+    createdDate: "2026-02-24T14:20:00Z",
     buildNumber: "142",
-    bundleId: "com.example.weatherly",
-    device: "iPhone 16",
-    locale: "English (United States)",
-    battery: 45,
-    date: "2026-02-24T14:20:00Z",
+    buildBundleId: "com.example.weatherly",
+    appPlatform: "IOS",
+    devicePlatform: "IOS",
+    deviceFamily: "IPHONE",
+    deviceModel: "iPhone 16",
+    osVersion: "19.3",
+    locale: "en_US",
+    architecture: "arm64e",
+    connectionType: "WIFI",
+    batteryPercentage: 45,
+    timeZone: "America/Chicago",
+    appUptimeMs: 18000,
+    diskBytesAvailable: 22_000_000_000,
+    diskBytesTotal: 256_000_000_000,
+    screenWidth: 393,
+    screenHeight: 852,
+    pairedAppleWatch: null,
+    screenshots: [],
+    hasCrashLog: true,
   },
   {
     id: "fb-003",
     appId: "app-001",
     type: "screenshot",
-    message:
+    comment:
       "Widget shows yesterday\u2019s weather after midnight until the first background refresh. Expected to update at midnight.",
     email: "sarah@example.com",
-    platform: "iOS 19.3",
-    versionString: "2.1.0",
+    testerName: "Sarah Chen",
+    createdDate: "2026-02-22T07:30:00Z",
     buildNumber: "142",
-    bundleId: "com.example.weatherly",
-    device: "iPhone 15",
-    locale: "English (United States)",
-    battery: 88,
-    date: "2026-02-22T07:30:00Z",
+    buildBundleId: "com.example.weatherly",
+    appPlatform: "IOS",
+    devicePlatform: "IOS",
+    deviceFamily: "IPHONE",
+    deviceModel: "iPhone 15",
+    osVersion: "19.3",
+    locale: "en_US",
+    architecture: "arm64e",
+    connectionType: "WIFI",
+    batteryPercentage: 88,
+    timeZone: "America/Los_Angeles",
+    appUptimeMs: 7200000,
+    diskBytesAvailable: 64_000_000_000,
+    diskBytesTotal: 256_000_000_000,
+    screenWidth: 393,
+    screenHeight: 852,
+    pairedAppleWatch: "Series 9",
+    screenshots: [],
+    hasCrashLog: false,
   },
   {
     id: "fb-004",
     appId: "app-001",
     type: "screenshot",
-    message:
+    comment:
       "The \"feels like\" temperature on the widget is cut off on smaller widget sizes. Only shows \"Feels li...\"",
     email: "",
-    platform: "iOS 19.3",
-    versionString: "2.1.0",
+    testerName: null,
+    createdDate: "2026-02-18T16:45:00Z",
     buildNumber: "142",
-    bundleId: "com.example.weatherly",
-    device: "iPhone 15 Pro",
-    locale: "English (United Kingdom)",
-    battery: 60,
-    date: "2026-02-18T16:45:00Z",
+    buildBundleId: "com.example.weatherly",
+    appPlatform: "IOS",
+    devicePlatform: "IOS",
+    deviceFamily: "IPHONE",
+    deviceModel: "iPhone 15 Pro",
+    osVersion: "19.3",
+    locale: "en_GB",
+    architecture: "arm64e",
+    connectionType: "MOBILE_DATA",
+    batteryPercentage: 60,
+    timeZone: "Europe/London",
+    appUptimeMs: 120000,
+    diskBytesAvailable: 35_000_000_000,
+    diskBytesTotal: 128_000_000_000,
+    screenWidth: 393,
+    screenHeight: 852,
+    pairedAppleWatch: null,
+    screenshots: [],
+    hasCrashLog: false,
   },
   {
     id: "fb-005",
     appId: "app-001",
     type: "crash",
-    message:
+    comment:
       "App freezes for about 5 seconds when opening severe weather alert detail view. Sometimes recovers, sometimes crashes.",
     email: "tom.b@example.com",
-    platform: "iOS 19.2",
-    versionString: "2.0.1",
+    testerName: "Tom Bakker",
+    createdDate: "2026-02-10T11:00:00Z",
     buildNumber: "138",
-    bundleId: "com.example.weatherly",
-    device: "iPhone 15",
-    locale: "Dutch (Netherlands)",
-    battery: 31,
-    date: "2026-02-10T11:00:00Z",
+    buildBundleId: "com.example.weatherly",
+    appPlatform: "IOS",
+    devicePlatform: "IOS",
+    deviceFamily: "IPHONE",
+    deviceModel: "iPhone 15",
+    osVersion: "19.2",
+    locale: "nl_NL",
+    architecture: "arm64e",
+    connectionType: "WIFI",
+    batteryPercentage: 31,
+    timeZone: "Europe/Amsterdam",
+    appUptimeMs: 540000,
+    diskBytesAvailable: 18_000_000_000,
+    diskBytesTotal: 128_000_000_000,
+    screenWidth: 393,
+    screenHeight: 852,
+    pairedAppleWatch: "Series 8",
+    screenshots: [],
+    hasCrashLog: true,
   },
   {
     id: "fb-006",
     appId: "app-001",
     type: "screenshot",
-    message:
+    comment:
       "Dark mode: the sunrise/sunset gradient card is almost invisible. Needs higher contrast or different colours for dark backgrounds.",
     email: "chris@techblog.com",
-    platform: "iOS 19.3",
-    versionString: "2.0.1",
+    testerName: "Chris Miller",
+    createdDate: "2026-01-28T20:00:00Z",
     buildNumber: "138",
-    bundleId: "com.example.weatherly",
-    device: "iPhone 16 Pro",
-    locale: "English (United States)",
-    battery: 54,
-    date: "2026-01-28T20:00:00Z",
+    buildBundleId: "com.example.weatherly",
+    appPlatform: "IOS",
+    devicePlatform: "IOS",
+    deviceFamily: "IPHONE",
+    deviceModel: "iPhone 16 Pro",
+    osVersion: "19.3",
+    locale: "en_US",
+    architecture: "arm64e",
+    connectionType: "WIFI",
+    batteryPercentage: 54,
+    timeZone: "America/New_York",
+    appUptimeMs: 900000,
+    diskBytesAvailable: 52_000_000_000,
+    diskBytesTotal: 256_000_000_000,
+    screenWidth: 393,
+    screenHeight: 852,
+    pairedAppleWatch: null,
+    screenshots: [],
+    hasCrashLog: false,
   },
 ];
 
@@ -603,7 +701,7 @@ export function getGroupTesters(groupId: string): MockBetaTester[] {
 
 export function getAppFeedback(appId: string): MockFeedbackItem[] {
   return MOCK_FEEDBACK.filter((f) => f.appId === appId).sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    (a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime(),
   );
 }
 
@@ -611,6 +709,7 @@ export function getAppFeedback(appId: string): MockFeedbackItem[] {
 
 import type {
   TFBuild,
+  TFFeedbackItem,
   TFGroup,
   TFGroupDetail,
   TFTester,
@@ -796,4 +895,38 @@ export function getMockBetaAppInfo(appId: string): TFBetaAppInfo {
   };
 
   return { localizations, reviewDetail, licenseAgreement };
+}
+
+export function getMockFeedback(appId: string): TFFeedbackItem[] {
+  return MOCK_FEEDBACK
+    .filter((f) => f.appId === appId)
+    .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
+    .map((f) => ({
+      id: f.id,
+      type: f.type,
+      comment: f.comment,
+      email: f.email || null,
+      testerName: f.testerName,
+      createdDate: f.createdDate,
+      buildNumber: f.buildNumber,
+      buildBundleId: f.buildBundleId,
+      appPlatform: f.appPlatform,
+      devicePlatform: f.devicePlatform,
+      deviceFamily: f.deviceFamily,
+      deviceModel: f.deviceModel,
+      osVersion: f.osVersion,
+      locale: f.locale,
+      architecture: f.architecture,
+      connectionType: f.connectionType,
+      batteryPercentage: f.batteryPercentage,
+      timeZone: f.timeZone,
+      appUptimeMs: f.appUptimeMs,
+      diskBytesAvailable: f.diskBytesAvailable,
+      diskBytesTotal: f.diskBytesTotal,
+      screenWidth: f.screenWidth,
+      screenHeight: f.screenHeight,
+      pairedAppleWatch: f.pairedAppleWatch,
+      screenshots: f.screenshots,
+      hasCrashLog: f.hasCrashLog,
+    }));
 }

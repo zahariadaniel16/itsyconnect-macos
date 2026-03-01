@@ -7,6 +7,8 @@ export type {
   TFBetaLicenseAgreement,
   TFBetaAppInfo,
   TFGroupDetail,
+  TFFeedbackItem,
+  TFScreenshotImage,
 } from "./types";
 
 export {
@@ -39,6 +41,7 @@ export {
   updateBetaAppReviewDetail,
   updateBetaLicenseAgreement,
 } from "./info";
+export { listFeedback, getFeedbackCrashLog, deleteFeedbackItem } from "./feedback";
 
 // ── Cache invalidation (touches caches across domains) ───────────
 
@@ -48,4 +51,5 @@ export function invalidateTestFlightCache(appId: string): void {
   cacheInvalidatePrefix(`tf-builds:${appId}`);
   cacheInvalidatePrefix(`tf-groups:${appId}`);
   cacheInvalidatePrefix(`tf-info:${appId}`);
+  cacheInvalidatePrefix(`tf-feedback:${appId}`);
 }

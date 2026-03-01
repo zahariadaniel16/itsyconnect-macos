@@ -14,10 +14,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Camera, WarningCircle, CircleNotch, Info } from "@phosphor-icons/react";
+import { Camera, WarningCircle, CircleNotch } from "@phosphor-icons/react";
 import { useApps } from "@/lib/apps-context";
 import { useRegisterRefresh } from "@/lib/refresh-context";
-import type { MockFeedbackItem } from "@/lib/mock-testflight";
+import type { TFFeedbackItem } from "@/lib/asc/testflight";
 import { EmptyState } from "@/components/empty-state";
 
 function formatDate(iso: string): string {
@@ -40,7 +40,7 @@ export default function FeedbackPage() {
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
 
-  const [allFeedback, setAllFeedback] = useState<MockFeedbackItem[]>([]);
+  const [allFeedback, setAllFeedback] = useState<TFFeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,19 +69,19 @@ export default function FeedbackPage() {
   const handleRefresh = useCallback(async () => fetchData(), [fetchData]);
   useRegisterRefresh({ onRefresh: handleRefresh, busy: loading });
 
-  const versions = useMemo(
-    () => [...new Set(allFeedback.map((f) => `${f.versionString} (${f.buildNumber})`))],
+  const buildNumbers = useMemo(
+    () => [...new Set(allFeedback.map((f) => f.buildNumber).filter(Boolean))] as string[],
     [allFeedback],
   );
 
   const platforms = useMemo(
-    () => [...new Set(allFeedback.map((f) => f.platform))],
+    () => [...new Set(allFeedback.map((f) => f.appPlatform).filter(Boolean))] as string[],
     [allFeedback],
   );
 
   const [typeFilter, setTypeFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
-  const [versionFilter, setVersionFilter] = useState("all");
+  const [buildFilter, setBuildFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [hideCompleted, setHideCompleted] = useState(false);
 
@@ -94,21 +94,19 @@ export default function FeedbackPage() {
 
     if (dateFilter !== "all") {
       const days = parseInt(dateFilter);
-      items = items.filter((f) => isWithinDays(f.date, days));
+      items = items.filter((f) => isWithinDays(f.createdDate, days));
     }
 
-    if (versionFilter !== "all") {
-      items = items.filter(
-        (f) => `${f.versionString} (${f.buildNumber})` === versionFilter,
-      );
+    if (buildFilter !== "all") {
+      items = items.filter((f) => f.buildNumber === buildFilter);
     }
 
     if (platformFilter !== "all") {
-      items = items.filter((f) => f.platform === platformFilter);
+      items = items.filter((f) => f.appPlatform === platformFilter);
     }
 
     return items;
-  }, [allFeedback, typeFilter, dateFilter, versionFilter, platformFilter]);
+  }, [allFeedback, typeFilter, dateFilter, buildFilter, platformFilter]);
 
   // Stats
   const stats = useMemo(() => {
@@ -142,12 +140,6 @@ export default function FeedbackPage() {
 
   return (
     <div className="space-y-6">
-      {/* Info banner */}
-      <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-400">
-        <Info size={16} className="shrink-0" />
-        Feedback content is not available via the App Store Connect API. Showing demo data.
-      </div>
-
       {/* Summary */}
       <Card>
         <CardContent className="flex items-center gap-8 py-0">
@@ -199,22 +191,22 @@ export default function FeedbackPage() {
           </SelectContent>
         </Select>
 
-        <Select value={versionFilter} onValueChange={setVersionFilter}>
-          <SelectTrigger className="w-[160px] text-sm">
+        <Select value={buildFilter} onValueChange={setBuildFilter}>
+          <SelectTrigger className="w-[140px] text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All versions</SelectItem>
-            {versions.map((v) => (
-              <SelectItem key={v} value={v}>
-                {v}
+            <SelectItem value="all">All builds</SelectItem>
+            {buildNumbers.map((b) => (
+              <SelectItem key={b} value={b}>
+                Build {b}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         <Select value={platformFilter} onValueChange={setPlatformFilter}>
-          <SelectTrigger className="w-[150px] text-sm">
+          <SelectTrigger className="w-[140px] text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -271,23 +263,33 @@ export default function FeedbackPage() {
                     {item.type === "screenshot" ? "Screenshot" : "Crash"}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {formatDate(item.date)}
+                    {formatDate(item.createdDate)}
                   </span>
                 </div>
 
-                {/* Message */}
-                <p className="text-sm line-clamp-2">{item.message}</p>
+                {/* Comment + screenshot thumbnail */}
+                <div className="flex gap-3">
+                  <p className="flex-1 text-sm line-clamp-2">{item.comment}</p>
+                  {item.screenshots.length > 0 && (
+                    <img
+                      src={item.screenshots[0].url}
+                      alt="Screenshot thumbnail"
+                      className="h-14 w-14 shrink-0 rounded border object-cover"
+                    />
+                  )}
+                </div>
 
                 {/* Footer: metadata */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    {item.email
-                      ? `${item.email} · ${item.device}`
-                      : item.device}
+                    {item.testerName ?? item.email ?? "Anonymous"}
+                    {item.deviceModel ? ` · ${item.deviceModel}` : ""}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {item.versionString} ({item.buildNumber})
-                  </span>
+                  {item.buildNumber && (
+                    <span className="text-xs text-muted-foreground">
+                      Build {item.buildNumber}
+                    </span>
+                  )}
                 </div>
               </CardContent>
             </Card>
