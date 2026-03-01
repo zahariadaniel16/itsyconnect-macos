@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { errorJson, parseBody } from "@/lib/api-helpers";
+import { describe, it, expect, vi } from "vitest";
+import { errorJson, parseBody, syncLocalizations } from "@/lib/api-helpers";
+import type { SyncLocalizationsMutations } from "@/lib/api-helpers";
 import { z } from "zod";
 
 describe("api-helpers", () => {
@@ -58,6 +59,185 @@ describe("api-helpers", () => {
       const body = await (result as Response).json();
       expect(body.error).toBe("Validation failed");
       expect(body.details).toBeDefined();
+    });
+  });
+
+  describe("syncLocalizations", () => {
+    function makePutRequest(body: unknown): Request {
+      return new Request("http://localhost", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+
+    function makeMutations(overrides?: Partial<SyncLocalizationsMutations>): SyncLocalizationsMutations {
+      return {
+        update: vi.fn<(id: string, fields: Record<string, unknown>) => Promise<void>>().mockResolvedValue(undefined),
+        create: vi.fn<(parentId: string, locale: string, fields: Record<string, unknown>) => Promise<string>>().mockResolvedValue("new-id"),
+        delete: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
+        invalidateCache: vi.fn(),
+        ...overrides,
+      };
+    }
+
+    it("updates existing localizations", async () => {
+      const mutations = makeMutations();
+      const req = makePutRequest({
+        locales: { "en-US": { title: "Hello" } },
+        originalLocaleIds: { "en-US": "loc-1" },
+      });
+      const res = await syncLocalizations(req, "parent-1", mutations);
+      const body = await res.json();
+
+      expect(mutations.update).toHaveBeenCalledWith("loc-1", { title: "Hello" });
+      expect(mutations.create).not.toHaveBeenCalled();
+      expect(mutations.delete).not.toHaveBeenCalled();
+      expect(mutations.invalidateCache).toHaveBeenCalled();
+      expect(body.ok).toBe(true);
+      expect(body.createdIds).toEqual({});
+    });
+
+    it("creates new localizations", async () => {
+      const mutations = makeMutations({
+        create: vi.fn<(parentId: string, locale: string, fields: Record<string, unknown>) => Promise<string>>().mockResolvedValue("created-42"),
+      });
+      const req = makePutRequest({
+        locales: { "fr-FR": { title: "Bonjour" } },
+        originalLocaleIds: {},
+      });
+      const res = await syncLocalizations(req, "parent-1", mutations);
+      const body = await res.json();
+
+      expect(mutations.create).toHaveBeenCalledWith("parent-1", "fr-FR", { title: "Bonjour" });
+      expect(body.ok).toBe(true);
+      expect(body.createdIds).toEqual({ "fr-FR": "created-42" });
+    });
+
+    it("deletes removed localizations", async () => {
+      const mutations = makeMutations();
+      const req = makePutRequest({
+        locales: {},
+        originalLocaleIds: { "de-DE": "loc-99" },
+      });
+      const res = await syncLocalizations(req, "parent-1", mutations);
+      const body = await res.json();
+
+      expect(mutations.delete).toHaveBeenCalledWith("loc-99");
+      expect(body.ok).toBe(true);
+    });
+
+    it("handles mixed create, update, and delete", async () => {
+      const mutations = makeMutations({
+        create: vi.fn<(parentId: string, locale: string, fields: Record<string, unknown>) => Promise<string>>().mockResolvedValue("new-id"),
+      });
+      const req = makePutRequest({
+        locales: {
+          "en-US": { title: "Updated" },
+          "ja-JP": { title: "New" },
+        },
+        originalLocaleIds: { "en-US": "loc-1", "de-DE": "loc-2" },
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(mutations.update).toHaveBeenCalledWith("loc-1", { title: "Updated" });
+      expect(mutations.create).toHaveBeenCalledWith("p1", "ja-JP", { title: "New" });
+      expect(mutations.delete).toHaveBeenCalledWith("loc-2");
+      expect(body.ok).toBe(true);
+      expect(body.createdIds).toEqual({ "ja-JP": "new-id" });
+    });
+
+    it("returns 207 with errors on partial failure", async () => {
+      const mutations = makeMutations({
+        update: vi.fn<(id: string, fields: Record<string, unknown>) => Promise<void>>().mockRejectedValue(new Error("API down")),
+      });
+      const req = makePutRequest({
+        locales: { "en-US": { title: "Fail" } },
+        originalLocaleIds: { "en-US": "loc-1" },
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(res.status).toBe(207);
+      expect(body.ok).toBe(false);
+      expect(body.errors).toEqual(["Update en-US: API down"]);
+      expect(mutations.invalidateCache).toHaveBeenCalled();
+    });
+
+    it("uses 'failed' fallback for non-Error rejections", async () => {
+      const mutations = makeMutations({
+        delete: vi.fn<(id: string) => Promise<void>>().mockRejectedValue("string-error"),
+      });
+      const req = makePutRequest({
+        locales: {},
+        originalLocaleIds: { "en-US": "loc-1" },
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(res.status).toBe(207);
+      expect(body.errors).toEqual(["Delete en-US: failed"]);
+    });
+
+    it("uses 'failed' fallback for non-Error create rejections", async () => {
+      const mutations = makeMutations({
+        create: vi.fn<(parentId: string, locale: string, fields: Record<string, unknown>) => Promise<string>>().mockRejectedValue(42),
+      });
+      const req = makePutRequest({
+        locales: { "fr-FR": { title: "New" } },
+        originalLocaleIds: {},
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(res.status).toBe(207);
+      expect(body.errors).toEqual(["Create fr-FR: failed"]);
+    });
+
+    it("uses 'failed' fallback for non-Error update rejections", async () => {
+      const mutations = makeMutations({
+        update: vi.fn<(id: string, fields: Record<string, unknown>) => Promise<void>>().mockRejectedValue(null),
+      });
+      const req = makePutRequest({
+        locales: { "en-US": { title: "Fail" } },
+        originalLocaleIds: { "en-US": "loc-1" },
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(res.status).toBe(207);
+      expect(body.errors).toEqual(["Update en-US: failed"]);
+    });
+
+    it("extracts message from Error on create failure", async () => {
+      const mutations = makeMutations({
+        create: vi.fn<(parentId: string, locale: string, fields: Record<string, unknown>) => Promise<string>>().mockRejectedValue(new Error("quota exceeded")),
+      });
+      const req = makePutRequest({
+        locales: { "fr-FR": { title: "New" } },
+        originalLocaleIds: {},
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(res.status).toBe(207);
+      expect(body.errors).toEqual(["Create fr-FR: quota exceeded"]);
+    });
+
+    it("extracts message from Error on delete failure", async () => {
+      const mutations = makeMutations({
+        delete: vi.fn<(id: string) => Promise<void>>().mockRejectedValue(new Error("forbidden")),
+      });
+      const req = makePutRequest({
+        locales: {},
+        originalLocaleIds: { "de-DE": "loc-5" },
+      });
+      const res = await syncLocalizations(req, "p1", mutations);
+      const body = await res.json();
+
+      expect(res.status).toBe(207);
+      expect(body.errors).toEqual(["Delete de-DE: forbidden"]);
     });
   });
 });
