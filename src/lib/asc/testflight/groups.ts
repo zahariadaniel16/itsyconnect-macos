@@ -96,12 +96,14 @@ export async function getGroupDetail(
   }
 
   // Fetch group, its builds, and its testers in parallel
+  // Note: relationship endpoints (/betaGroups/{id}/builds) don't support `include`,
+  // so we fetch builds with basic fields and resolve related resources per-build.
   const [groupRes, buildsRes, testersRes] = await Promise.all([
     ascFetch<AscJsonApiResponse>(
       `/v1/betaGroups/${groupId}?fields[betaGroups]=name,isInternalGroup,publicLinkEnabled,publicLink,publicLinkLimit,publicLinkLimitEnabled,feedbackEnabled,hasAccessToAllBuilds,createdDate`,
     ),
     ascFetch<AscJsonApiResponse>(
-      `/v1/betaGroups/${groupId}/builds?fields[builds]=version,uploadedDate,processingState,expirationDate,expired,iconAssetToken&include=preReleaseVersion,buildBetaDetail&fields[preReleaseVersions]=version,platform&fields[buildBetaDetails]=internalBuildState,externalBuildState&limit=200&sort=-uploadedDate`,
+      `/v1/betaGroups/${groupId}/builds?fields[builds]=version,uploadedDate,processingState,expirationDate,expired,iconAssetToken&limit=200&sort=-uploadedDate`,
     ),
     ascFetch<AscJsonApiResponse>(
       `/v1/betaGroups/${groupId}/betaTesters?fields[betaTesters]=firstName,lastName,email,inviteType,state&limit=200`,
@@ -131,36 +133,45 @@ export async function getGroupDetail(
     createdDate: gAttrs.createdDate as string,
   };
 
-  // Parse builds
-  const buildIncludedMap = new Map<string, AscJsonApiResource>();
-  if (buildsRes.included) {
-    for (const inc of buildsRes.included) {
-      buildIncludedMap.set(`${inc.type}:${inc.id}`, inc);
+  // Fetch preReleaseVersion and buildBetaDetail per build in parallel
+  const buildDetails = await Promise.allSettled(
+    buildDataArr.map(async (b) => {
+      const [prvRes, bbdRes] = await Promise.all([
+        ascFetch<AscJsonApiResponse>(
+          `/v1/builds/${b.id}/preReleaseVersion?fields[preReleaseVersions]=version,platform`,
+        ).catch(() => null),
+        ascFetch<AscJsonApiResponse>(
+          `/v1/builds/${b.id}/buildBetaDetail?fields[buildBetaDetails]=internalBuildState,externalBuildState`,
+        ).catch(() => null),
+      ]);
+      const prvData = prvRes && !Array.isArray(prvRes.data) ? prvRes.data : null;
+      const bbdData = bbdRes && !Array.isArray(bbdRes.data) ? bbdRes.data : null;
+      return { buildId: b.id, prvData, bbdData };
+    }),
+  );
+
+  const detailMap = new Map<string, { prvData: AscJsonApiResource | null; bbdData: AscJsonApiResource | null }>();
+  for (const result of buildDetails) {
+    if (result.status === "fulfilled") {
+      detailMap.set(result.value.buildId, result.value);
     }
   }
 
   const builds: TFBuild[] = buildDataArr.map((b) => {
     const attrs = b.attributes;
-    const prvRef = b.relationships?.preReleaseVersion?.data;
-    const prvData = prvRef && !Array.isArray(prvRef)
-      ? buildIncludedMap.get(`preReleaseVersions:${prvRef.id}`)
-      : undefined;
-    const bbdRef = b.relationships?.buildBetaDetail?.data;
-    const bbdData = bbdRef && !Array.isArray(bbdRef)
-      ? buildIncludedMap.get(`buildBetaDetails:${bbdRef.id}`)
-      : undefined;
+    const detail = detailMap.get(b.id);
 
     const processingState = attrs.processingState as string;
-    const externalBuildState = bbdData?.attributes?.externalBuildState as string | null ?? null;
-    const internalBuildState = bbdData?.attributes?.internalBuildState as string | null ?? null;
+    const externalBuildState = detail?.bbdData?.attributes?.externalBuildState as string | null ?? null;
+    const internalBuildState = detail?.bbdData?.attributes?.internalBuildState as string | null ?? null;
     const expired = (attrs.expired as boolean) ?? false;
     const iconToken = attrs.iconAssetToken as { templateUrl: string } | null;
 
     return {
       id: b.id,
       buildNumber: attrs.version as string,
-      versionString: prvData?.attributes?.version as string ?? "",
-      platform: prvData?.attributes?.platform as string ?? "IOS",
+      versionString: detail?.prvData?.attributes?.version as string ?? "",
+      platform: detail?.prvData?.attributes?.platform as string ?? "IOS",
       status: deriveBuildStatus(processingState, externalBuildState, internalBuildState, expired),
       internalBuildState,
       externalBuildState,
