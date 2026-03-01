@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { listGroups } from "@/lib/asc/testflight";
+import { z } from "zod";
+import { listGroups, createGroup } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { getMockTFGroups } from "@/lib/mock-testflight";
@@ -21,6 +22,58 @@ export async function GET(
     const groups = await listGroups(appId, forceRefresh);
     const meta = cacheGetMeta(`tf-groups:${appId}`);
     return NextResponse.json({ groups, meta });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+const createGroupSchema = z.object({
+  name: z.string().min(1),
+  isInternal: z.boolean(),
+});
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ appId: string }> },
+) {
+  const { appId } = await params;
+
+  const body = await request.json().catch(() => null);
+  if (!body) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = createGroupSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Validation failed", details: parsed.error.issues },
+      { status: 400 },
+    );
+  }
+
+  if (!hasCredentials()) {
+    // Demo mode: return a mock group
+    const group = {
+      id: `mock-${Date.now()}`,
+      name: parsed.data.name,
+      isInternal: parsed.data.isInternal,
+      testerCount: 0,
+      buildCount: 0,
+      publicLinkEnabled: false,
+      publicLink: null,
+      publicLinkLimit: null,
+      publicLinkLimitEnabled: false,
+      feedbackEnabled: false,
+      hasAccessToAllBuilds: false,
+      createdDate: new Date().toISOString(),
+    };
+    return NextResponse.json({ group }, { status: 201 });
+  }
+
+  try {
+    const group = await createGroup(appId, parsed.data.name, parsed.data.isInternal);
+    return NextResponse.json({ group }, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 502 });

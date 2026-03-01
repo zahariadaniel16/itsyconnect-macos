@@ -19,7 +19,7 @@ export {
   declareExportCompliance,
   notifyTesters,
 } from "./builds";
-export { listGroups, getGroupDetail, fetchTesterMetrics } from "./groups";
+export { listGroups, getGroupDetail, fetchTesterMetrics, createGroup, deleteGroup } from "./groups";
 export {
   listBuildIndividualTesters,
   listAppBetaTesters,

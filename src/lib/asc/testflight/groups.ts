@@ -1,6 +1,6 @@
 import { ascFetch } from "../client";
 import { buildIconUrl } from "../apps";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { cacheGet, cacheSet, cacheInvalidatePrefix } from "@/lib/cache";
 import {
   GROUPS_TTL,
   GROUP_DETAIL_TTL,
@@ -210,6 +210,52 @@ export async function getGroupDetail(
   const detail: TFGroupDetail = { group, builds, testers };
   cacheSet(cacheKey, detail, GROUP_DETAIL_TTL);
   return detail;
+}
+
+// ── Create / delete ──────────────────────────────────────────────
+
+export async function createGroup(
+  appId: string,
+  name: string,
+  isInternal: boolean,
+): Promise<TFGroup> {
+  const response = await ascFetch<AscJsonApiResponse>(`/v1/betaGroups`, {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "betaGroups",
+        attributes: { name, isInternalGroup: isInternal },
+        relationships: {
+          app: { data: { type: "apps", id: appId } },
+        },
+      },
+    }),
+  });
+
+  const g = Array.isArray(response.data) ? response.data[0] : response.data;
+  const attrs = g.attributes;
+
+  cacheInvalidatePrefix(`tf-groups:${appId}`);
+
+  return {
+    id: g.id,
+    name: attrs.name as string,
+    isInternal: (attrs.isInternalGroup as boolean) ?? false,
+    testerCount: 0,
+    buildCount: 0,
+    publicLinkEnabled: (attrs.publicLinkEnabled as boolean) ?? false,
+    publicLink: (attrs.publicLink as string) ?? null,
+    publicLinkLimit: (attrs.publicLinkLimit as number) ?? null,
+    publicLinkLimitEnabled: (attrs.publicLinkLimitEnabled as boolean) ?? false,
+    feedbackEnabled: (attrs.feedbackEnabled as boolean) ?? false,
+    hasAccessToAllBuilds: (attrs.hasAccessToAllBuilds as boolean) ?? false,
+    createdDate: (attrs.createdDate as string) ?? new Date().toISOString(),
+  };
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  await ascFetch(`/v1/betaGroups/${groupId}`, { method: "DELETE" });
+  cacheInvalidatePrefix("tf-groups:");
 }
 
 // ── Tester metrics ───────────────────────────────────────────────
