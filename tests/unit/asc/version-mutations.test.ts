@@ -19,6 +19,7 @@ import {
   deleteVersion,
   cancelSubmission,
   releaseVersion,
+  selectBuildForVersion,
   invalidateVersionsCache,
 } from "@/lib/asc/version-mutations";
 
@@ -152,6 +153,23 @@ describe("version-mutations", () => {
       const body = JSON.parse(mockAscFetch.mock.calls[0][1].body);
       expect(body.data.type).toBe("appStoreVersionReleaseRequests");
       expect(body.data.relationships.appStoreVersion.data.id).toBe("ver-1");
+    });
+  });
+
+  describe("selectBuildForVersion", () => {
+    it("PATCHes the build relationship for the version", async () => {
+      mockAscFetch.mockResolvedValue({});
+
+      await selectBuildForVersion("ver-1", "build-1");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/appStoreVersions/ver-1/relationships/build",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+
+      const body = JSON.parse(mockAscFetch.mock.calls[0][1].body);
+      expect(body.data.type).toBe("builds");
+      expect(body.data.id).toBe("build-1");
     });
   });
 

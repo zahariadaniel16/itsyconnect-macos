@@ -1,0 +1,95 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const store = new Map<string, string>();
+
+vi.stubGlobal("localStorage", {
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => store.set(key, value),
+  removeItem: (key: string) => store.delete(key),
+  clear: () => store.clear(),
+});
+
+import { saveNavigation, getLastUrl, getAppState } from "@/lib/nav-state";
+
+describe("nav-state", () => {
+  beforeEach(() => {
+    store.clear();
+  });
+
+  describe("saveNavigation", () => {
+    it("saves lastUrl and per-app subpath", () => {
+      saveNavigation("/dashboard/apps/app-1/details", "");
+      expect(getLastUrl()).toBe("/dashboard/apps/app-1/details");
+      expect(getAppState("app-1")).toBe("/details");
+    });
+
+    it("saves search params as suffix", () => {
+      saveNavigation("/dashboard/apps/app-1/store-listing", "version=v1&locale=en");
+      expect(getLastUrl()).toBe("/dashboard/apps/app-1/store-listing?version=v1&locale=en");
+      expect(getAppState("app-1")).toBe("/store-listing?version=v1&locale=en");
+    });
+
+    it("ignores non-app paths", () => {
+      saveNavigation("/dashboard/settings", "");
+      expect(getLastUrl()).toBeUndefined();
+    });
+
+    it("handles app root (no subpath)", () => {
+      saveNavigation("/dashboard/apps/app-2", "");
+      expect(getLastUrl()).toBe("/dashboard/apps/app-2");
+      expect(getAppState("app-2")).toBe("");
+    });
+
+    it("ignores empty appId", () => {
+      saveNavigation("/dashboard/apps/", "");
+      expect(getLastUrl()).toBeUndefined();
+    });
+
+    it("preserves state for multiple apps", () => {
+      saveNavigation("/dashboard/apps/app-1/details", "");
+      saveNavigation("/dashboard/apps/app-2/reviews", "");
+      expect(getAppState("app-1")).toBe("/details");
+      expect(getAppState("app-2")).toBe("/reviews");
+      expect(getLastUrl()).toBe("/dashboard/apps/app-2/reviews");
+    });
+  });
+
+  describe("getLastUrl", () => {
+    it("returns undefined when nothing saved", () => {
+      expect(getLastUrl()).toBeUndefined();
+    });
+
+    it("returns undefined for non-app URLs in storage", () => {
+      store.set("nav-state", JSON.stringify({ lastUrl: "/setup", apps: {} }));
+      expect(getLastUrl()).toBeUndefined();
+    });
+  });
+
+  describe("getAppState", () => {
+    it("returns undefined for unknown appId", () => {
+      expect(getAppState("nonexistent")).toBeUndefined();
+    });
+  });
+
+  describe("error resilience", () => {
+    it("handles corrupted localStorage gracefully", () => {
+      store.set("nav-state", "not json");
+      expect(getLastUrl()).toBeUndefined();
+      expect(getAppState("app-1")).toBeUndefined();
+    });
+
+    it("handles localStorage.setItem throwing", () => {
+      const original = localStorage.setItem;
+      vi.stubGlobal("localStorage", {
+        ...localStorage,
+        setItem: () => { throw new Error("quota exceeded"); },
+        getItem: () => null,
+      });
+
+      // Should not throw
+      expect(() => saveNavigation("/dashboard/apps/app-1/details", "")).not.toThrow();
+
+      vi.stubGlobal("localStorage", { ...localStorage, setItem: original });
+    });
+  });
+});

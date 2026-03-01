@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockHasCredentials = vi.fn();
 const mockListApps = vi.fn();
 const mockBuildAnalyticsData = vi.fn();
+const mockListBuilds = vi.fn();
+const mockListGroups = vi.fn();
 
 vi.mock("@/lib/asc/client", () => ({
   hasCredentials: (...args: unknown[]) => mockHasCredentials(...args),
@@ -16,13 +18,20 @@ vi.mock("@/lib/asc/analytics", () => ({
   buildAnalyticsData: (...args: unknown[]) => mockBuildAnalyticsData(...args),
 }));
 
-import { syncApps, syncAnalytics } from "@/lib/sync/jobs";
+vi.mock("@/lib/asc/testflight", () => ({
+  listBuilds: (...args: unknown[]) => mockListBuilds(...args),
+  listGroups: (...args: unknown[]) => mockListGroups(...args),
+}));
+
+import { syncApps, syncAnalytics, syncTestFlight } from "@/lib/sync/jobs";
 
 describe("syncApps", () => {
   beforeEach(() => {
     mockHasCredentials.mockReset();
     mockListApps.mockReset();
     mockBuildAnalyticsData.mockReset();
+    mockListBuilds.mockReset();
+    mockListGroups.mockReset();
   });
 
   it("calls listApps with forceRefresh when credentials exist", async () => {
@@ -53,6 +62,8 @@ describe("syncAnalytics", () => {
     mockHasCredentials.mockReset();
     mockListApps.mockReset();
     mockBuildAnalyticsData.mockReset();
+    mockListBuilds.mockReset();
+    mockListGroups.mockReset();
   });
 
   it("fetches analytics for each app sequentially", async () => {
@@ -72,5 +83,36 @@ describe("syncAnalytics", () => {
     await syncAnalytics();
     expect(mockListApps).not.toHaveBeenCalled();
     expect(mockBuildAnalyticsData).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncTestFlight", () => {
+  beforeEach(() => {
+    mockHasCredentials.mockReset();
+    mockListApps.mockReset();
+    mockListBuilds.mockReset();
+    mockListGroups.mockReset();
+  });
+
+  it("fetches builds and groups for each app", async () => {
+    mockHasCredentials.mockReturnValue(true);
+    mockListApps.mockResolvedValue([{ id: "app-1" }, { id: "app-2" }]);
+    mockListBuilds.mockResolvedValue([]);
+    mockListGroups.mockResolvedValue([]);
+
+    await syncTestFlight();
+    expect(mockListBuilds).toHaveBeenCalledWith("app-1", true);
+    expect(mockListBuilds).toHaveBeenCalledWith("app-2", true);
+    expect(mockListGroups).toHaveBeenCalledWith("app-1", true);
+    expect(mockListGroups).toHaveBeenCalledWith("app-2", true);
+  });
+
+  it("skips when no credentials exist", async () => {
+    mockHasCredentials.mockReturnValue(false);
+
+    await syncTestFlight();
+    expect(mockListApps).not.toHaveBeenCalled();
+    expect(mockListBuilds).not.toHaveBeenCalled();
+    expect(mockListGroups).not.toHaveBeenCalled();
   });
 });

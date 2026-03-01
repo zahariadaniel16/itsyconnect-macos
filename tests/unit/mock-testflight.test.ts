@@ -13,6 +13,12 @@ import {
   getGroup,
   getGroupTesters,
   getAppFeedback,
+  getMockTFBuilds,
+  getMockTFGroups,
+  getMockGroupDetail,
+  getMockBuildTesters,
+  getMockBetaAppInfo,
+  getMockFeedback,
 } from "@/lib/mock-testflight";
 
 describe("mock-testflight", () => {
@@ -173,6 +179,173 @@ describe("mock-testflight", () => {
 
     it("returns empty array for unknown app", () => {
       expect(getAppFeedback("nonexistent")).toEqual([]);
+    });
+  });
+
+  // ── Mock wrapper functions (normalised types for API routes) ──
+
+  describe("getMockTFBuilds", () => {
+    it("returns normalised builds for app-001", () => {
+      const builds = getMockTFBuilds("app-001");
+      expect(builds.length).toBeGreaterThan(0);
+      for (const b of builds) {
+        expect(b).toHaveProperty("id");
+        expect(b).toHaveProperty("buildNumber");
+        expect(b).toHaveProperty("status");
+        expect(b).toHaveProperty("groupIds");
+        expect(b).toHaveProperty("iconUrl");
+        expect(b).toHaveProperty("installs");
+      }
+    });
+
+    it("filters by platform", () => {
+      const iosBuilds = getMockTFBuilds("app-001", { platform: "IOS" });
+      const macBuilds = getMockTFBuilds("app-001", { platform: "MAC_OS" });
+      expect(iosBuilds.length).toBeGreaterThan(0);
+      expect(macBuilds.length).toBeGreaterThan(0);
+      for (const b of iosBuilds) expect(b.platform).toBe("IOS");
+      for (const b of macBuilds) expect(b.platform).toBe("MAC_OS");
+    });
+
+    it("filters by versionString", () => {
+      const builds = getMockTFBuilds("app-001", { versionString: "2.1.0" });
+      for (const b of builds) expect(b.versionString).toBe("2.1.0");
+    });
+
+    it("returns empty array for unknown app", () => {
+      expect(getMockTFBuilds("nonexistent")).toEqual([]);
+    });
+
+    it("sorts by uploadedDate descending", () => {
+      const builds = getMockTFBuilds("app-001");
+      for (let i = 1; i < builds.length; i++) {
+        expect(
+          new Date(builds[i - 1].uploadedDate).getTime(),
+        ).toBeGreaterThanOrEqual(new Date(builds[i].uploadedDate).getTime());
+      }
+    });
+  });
+
+  describe("getMockTFGroups", () => {
+    it("returns normalised groups for app-001", () => {
+      const groups = getMockTFGroups("app-001");
+      expect(groups.length).toBeGreaterThan(0);
+      for (const g of groups) {
+        expect(g).toHaveProperty("id");
+        expect(g).toHaveProperty("name");
+        expect(g).toHaveProperty("isInternal");
+        expect(g).toHaveProperty("testerCount");
+        expect(g).toHaveProperty("publicLinkEnabled");
+        expect(g).toHaveProperty("createdDate");
+      }
+    });
+
+    it("returns empty array for unknown app", () => {
+      expect(getMockTFGroups("nonexistent")).toEqual([]);
+    });
+  });
+
+  describe("getMockGroupDetail", () => {
+    it("returns group, builds, and testers for grp-001", () => {
+      const detail = getMockGroupDetail("grp-001");
+      expect(detail).not.toBeNull();
+      expect(detail!.group.id).toBe("grp-001");
+      expect(detail!.builds.length).toBeGreaterThan(0);
+      expect(detail!.testers.length).toBeGreaterThan(0);
+    });
+
+    it("returns null for unknown group", () => {
+      expect(getMockGroupDetail("nonexistent")).toBeNull();
+    });
+
+    it("includes build with null whatsNew for grp-003", () => {
+      const detail = getMockGroupDetail("grp-003");
+      expect(detail).not.toBeNull();
+      // tfb-007 has empty whatsNew → should map to null
+      const build007 = detail!.builds.find((b) => b.buildNumber === "139");
+      expect(build007).toBeDefined();
+      expect(build007!.whatsNew).toBeNull();
+    });
+
+    it("testers have expected fields", () => {
+      const detail = getMockGroupDetail("grp-002");
+      expect(detail).not.toBeNull();
+      for (const t of detail!.testers) {
+        expect(t).toHaveProperty("id");
+        expect(t).toHaveProperty("firstName");
+        expect(t).toHaveProperty("email");
+        expect(t).toHaveProperty("inviteType");
+        expect(t).toHaveProperty("state");
+      }
+    });
+  });
+
+  describe("getMockBuildTesters", () => {
+    it("returns testers for a known build", () => {
+      const testers = getMockBuildTesters("tfb-001");
+      expect(testers.length).toBeGreaterThan(0);
+      expect(testers.length).toBeLessThanOrEqual(3);
+      for (const t of testers) {
+        expect(t).toHaveProperty("id");
+        expect(t).toHaveProperty("firstName");
+      }
+    });
+
+    it("returns empty array for unknown build", () => {
+      expect(getMockBuildTesters("nonexistent")).toEqual([]);
+    });
+
+    it("returns testers for build in grp-003", () => {
+      const testers = getMockBuildTesters("tfb-007");
+      expect(testers.length).toBeGreaterThan(0);
+    });
+
+    it("deduplicates testers across groups", () => {
+      // tfb-004 is in grp-002 and grp-003 – testers should be unique
+      const testers = getMockBuildTesters("tfb-004");
+      const ids = testers.map((t) => t.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
+  describe("getMockBetaAppInfo", () => {
+    it("returns localizations, review detail, and license agreement", () => {
+      const info = getMockBetaAppInfo("app-001");
+      expect(info.localizations.length).toBeGreaterThan(0);
+      expect(info.reviewDetail).not.toBeNull();
+      expect(info.licenseAgreement).not.toBeNull();
+      for (const l of info.localizations) {
+        expect(l).toHaveProperty("id");
+        expect(l).toHaveProperty("locale");
+        expect(l).toHaveProperty("description");
+      }
+    });
+  });
+
+  describe("getMockFeedback", () => {
+    it("returns normalised feedback for app-001", () => {
+      const feedback = getMockFeedback("app-001");
+      expect(feedback.length).toBeGreaterThan(0);
+      for (const f of feedback) {
+        expect(f).toHaveProperty("id");
+        expect(f).toHaveProperty("type");
+        expect(f).toHaveProperty("comment");
+        expect(f).toHaveProperty("screenshots");
+        expect(f).toHaveProperty("hasCrashLog");
+      }
+    });
+
+    it("sorts by createdDate descending", () => {
+      const feedback = getMockFeedback("app-001");
+      for (let i = 1; i < feedback.length; i++) {
+        expect(
+          new Date(feedback[i - 1].createdDate).getTime(),
+        ).toBeGreaterThanOrEqual(new Date(feedback[i].createdDate).getTime());
+      }
+    });
+
+    it("returns empty array for unknown app", () => {
+      expect(getMockFeedback("nonexistent")).toEqual([]);
     });
   });
 });

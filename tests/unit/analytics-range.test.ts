@@ -91,6 +91,13 @@ describe("parseRange", () => {
     expect(r.from).toBe("2026-01-30");
     expect(r.to).toBe("2026-02-28");
   });
+
+  it("falls back to 30d for unknown preset key", () => {
+    const r = parseRange("999d");
+    expect(r.from).toBe("2026-01-30");
+    expect(r.to).toBe("2026-02-28");
+    expect(r.label).toBe("Last 30 days");
+  });
 });
 
 // ---------- parseRange with anchor ----------

@@ -88,6 +88,12 @@ describe("display-types", () => {
       ).toBe("Something went wrong");
     });
 
+    it("falls back to 'Processing failed' when description is nullish", () => {
+      expect(
+        screenshotErrorMessage([{ code: "UNKNOWN", description: undefined as unknown as string }]),
+      ).toBe("Processing failed");
+    });
+
     it("returns generic message for empty errors array", () => {
       expect(screenshotErrorMessage([])).toBe("Processing failed");
     });

@@ -73,7 +73,7 @@ export function parseRange(range: string | null, anchor?: string): DateRange {
 }
 
 function presetRange(key: string, anchor?: string): DateRange {
-  const days = PRESET_DAYS[key] ?? 30;
+  const days = PRESET_DAYS[key]!;
   const endDate = anchor ?? todayStr();
   const from = subtractDays(endDate, days - 1);
   return {

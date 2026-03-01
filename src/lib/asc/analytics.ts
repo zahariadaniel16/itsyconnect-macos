@@ -290,19 +290,20 @@ async function fetchReportData(
 
     const { rows: instanceRows, processingDate } = result.value;
 
-    // Some reports (e.g. App Crashes) don't include a Date column in the TSV.
-    // The date is implicit from the instance's processingDate – inject it.
-    const hasDateColumn = instanceRows.length > 0 && ("Date" in instanceRows[0] || "date" in instanceRows[0]);
-    if (!hasDateColumn && instanceRows.length > 0) {
+    // Normalize: ensure every row uses uppercase "Date" key.
+    // Some reports use lowercase "date"; crash reports omit it entirely
+    // (the date is implicit from the instance's processingDate).
+    if (instanceRows.length > 0 && !("Date" in instanceRows[0])) {
+      const fallback = "date" in instanceRows[0] ? undefined : processingDate;
       for (const row of instanceRows) {
-        row["Date"] = processingDate;
+        row["Date"] = fallback ?? row["date"]!;
       }
     }
 
     // Group this instance's rows by their Date field
     const rowsByDate = new Map<string, Array<Record<string, string>>>();
     for (const row of instanceRows) {
-      const date = row["Date"] ?? row["date"] ?? "";
+      const date = row["Date"]!;
       if (!date) { deduped.push(row); continue; }
       if (!rowsByDate.has(date)) rowsByDate.set(date, []);
       rowsByDate.get(date)!.push(row);

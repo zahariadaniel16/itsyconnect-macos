@@ -5,6 +5,8 @@ import {
   buildGenerateKeywordsPrompt,
   buildOptimizeKeywordsPrompt,
   buildFillKeywordGapsPrompt,
+  buildReplyPrompt,
+  buildAppealPrompt,
 } from "@/lib/ai/prompts";
 
 describe("buildTranslatePrompt", () => {
@@ -37,6 +39,17 @@ describe("buildTranslatePrompt", () => {
     expect(prompt).toContain("release notes");
     expect(prompt).not.toContain("app is called");
     expect(prompt).not.toContain("must not exceed");
+  });
+
+  it("uses the field name as-is for unknown fields", () => {
+    const prompt = buildTranslatePrompt(
+      "Hello",
+      "en-US",
+      "de-DE",
+      { field: "unknownField" },
+    );
+
+    expect(prompt).toContain("unknownField");
   });
 
   it("includes keyword-specific guidance for keywords field", () => {
@@ -196,5 +209,53 @@ describe("buildFillKeywordGapsPrompt", () => {
 
     expect(prompt).toContain("(empty)");
     expect(prompt).toContain("Japanese");
+  });
+});
+
+describe("buildReplyPrompt", () => {
+  it("includes rating, review content, and style rules", () => {
+    const prompt = buildReplyPrompt(
+      "Great app!",
+      "I love the weather forecasts.",
+      5,
+      "Weatherly",
+    );
+
+    expect(prompt).toContain("5-star");
+    expect(prompt).toContain("Great app!");
+    expect(prompt).toContain("I love the weather forecasts.");
+    expect(prompt).toContain("Weatherly");
+    expect(prompt).toContain("en dashes");
+  });
+
+  it("works without appName", () => {
+    const prompt = buildReplyPrompt("Bad", "Crashes a lot", 1);
+    expect(prompt).toContain("1-star");
+    expect(prompt).toContain("Crashes a lot");
+    expect(prompt).not.toContain("app is called");
+  });
+});
+
+describe("buildAppealPrompt", () => {
+  it("includes rating, review content, and guideline references", () => {
+    const prompt = buildAppealPrompt(
+      "Fake review",
+      "This app is terrible, competitor spam.",
+      1,
+      "Weatherly",
+    );
+
+    expect(prompt).toContain("1-star");
+    expect(prompt).toContain("Fake review");
+    expect(prompt).toContain("competitor");
+    expect(prompt).toContain("Weatherly");
+    expect(prompt).toContain("App Store Review Guidelines");
+  });
+
+  it("works without appName", () => {
+    const prompt = buildAppealPrompt("Spam", "Buy my product instead", 1);
+    expect(prompt).toContain("1-star");
+    expect(prompt).toContain("Buy my product instead");
+    expect(prompt).not.toContain("app is called");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createLanguageModel, validateApiKey } from "@/lib/ai/provider-factory";
+import { createLanguageModel, validateApiKey, getLanguageModel } from "@/lib/ai/provider-factory";
 
 // The LanguageModel type is a union; runtime objects have modelId/provider
 // but TS can't see them on every union member. Cast to Record for assertions.
@@ -51,6 +51,31 @@ describe("createLanguageModel", () => {
 vi.mock("ai", () => ({
   generateText: vi.fn(),
 }));
+
+vi.mock("@/lib/ai/settings", () => ({
+  getAISettings: vi.fn(),
+}));
+
+describe("getLanguageModel", () => {
+  it("creates a model from stored settings", async () => {
+    const { getAISettings } = await import("@/lib/ai/settings");
+    vi.mocked(getAISettings).mockResolvedValueOnce({
+      provider: "anthropic",
+      modelId: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+    });
+
+    const model = await getLanguageModel() as Record<string, unknown>;
+    expect(model.modelId).toBe("claude-sonnet-4-6");
+  });
+
+  it("throws when AI is not configured", async () => {
+    const { getAISettings } = await import("@/lib/ai/settings");
+    vi.mocked(getAISettings).mockResolvedValueOnce(null);
+
+    await expect(getLanguageModel()).rejects.toThrow("AI not configured");
+  });
+});
 
 describe("validateApiKey", () => {
   it("returns null when API call succeeds", async () => {
@@ -107,5 +132,13 @@ describe("validateApiKey", () => {
 
     const result = await validateApiKey("anthropic", "claude-sonnet-4-6", "sk-valid");
     expect(result).toBe("API key validation failed: connection timeout");
+  });
+
+  it("handles non-Error thrown values", async () => {
+    const { generateText } = await import("ai");
+    vi.mocked(generateText).mockRejectedValueOnce("string error");
+
+    const result = await validateApiKey("anthropic", "claude-sonnet-4-6", "sk-valid");
+    expect(result).toBe("API key validation failed: string error");
   });
 });
