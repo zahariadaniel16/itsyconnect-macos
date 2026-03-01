@@ -11,7 +11,27 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CircleNotch, ArrowClockwise } from "@phosphor-icons/react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { CircleNotch, ArrowClockwise, CaretDown, Prohibit, Plus, Minus } from "@phosphor-icons/react";
+import { toast } from "sonner";
+import { apiFetch } from "@/lib/api-fetch";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { resolveVersion, PLATFORM_LABELS } from "@/lib/asc/version-types";
@@ -55,10 +75,14 @@ export default function TestFlightBuildsPage() {
   const [groups, setGroups] = useState<TFGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [expireOpen, setExpireOpen] = useState(false);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
+    setSelected(new Set());
     try {
       const params = new URLSearchParams();
       if (forceRefresh) params.set("refresh", "1");
@@ -107,6 +131,123 @@ export default function TestFlightBuildsPage() {
 
     return { total, firstDate, latestDate };
   }, [builds]);
+
+  // Selection helpers
+  const selectableBuilds = useMemo(
+    () => builds.filter((b) => !b.expired),
+    [builds],
+  );
+
+  const allSelected = selectableBuilds.length > 0 && selectableBuilds.every((b) => selected.has(b.id));
+  const someSelected = selectableBuilds.some((b) => selected.has(b.id));
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(selectableBuilds.map((b) => b.id)));
+    }
+  }
+
+  function toggleOne(buildId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(buildId)) next.delete(buildId);
+      else next.add(buildId);
+      return next;
+    });
+  }
+
+  // Groups relevant to selected builds (for "remove from group")
+  const selectedBuildGroupIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const build of builds) {
+      if (selected.has(build.id)) {
+        for (const gid of build.groupIds) ids.add(gid);
+      }
+    }
+    return ids;
+  }, [builds, selected]);
+
+  const relevantGroups = useMemo(
+    () => groups.filter((g) => selectedBuildGroupIds.has(g.id)),
+    [groups, selectedBuildGroupIds],
+  );
+
+  // Statuses that Apple allows expiring (matches BuildActionFooter logic)
+  const expirableStatuses = new Set(["Testing", "Ready to test", "Ready to submit"]);
+
+  // Bulk action handlers
+  async function bulkExpire() {
+    setBulkLoading(true);
+    const eligible = builds.filter(
+      (b) => selected.has(b.id) && expirableStatuses.has(b.status),
+    );
+    const skipped = selected.size - eligible.length;
+    const results = await Promise.allSettled(
+      eligible.map((b) =>
+        apiFetch(`/api/apps/${appId}/testflight/builds/${b.id}/expire`, { method: "POST" }),
+      ),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed === 0 && skipped === 0) {
+      toast.success(`${ok} build${ok !== 1 ? "s" : ""} expired`);
+    } else if (failed === 0) {
+      toast.success(`${ok} expired, ${skipped} skipped (not eligible)`);
+    } else {
+      toast.error(`${ok} expired, ${failed} failed, ${skipped} skipped`);
+    }
+    setBulkLoading(false);
+    setExpireOpen(false);
+    fetchData(true);
+  }
+
+  async function bulkAddToGroup(groupId: string) {
+    setBulkLoading(true);
+    const ids = [...selected];
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        apiFetch(`/api/apps/${appId}/testflight/builds/${id}/groups`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupIds: [groupId] }),
+        }),
+      ),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed === 0) {
+      toast.success(`${ok} build${ok !== 1 ? "s" : ""} added to group`);
+    } else {
+      toast.error(`${ok} added, ${failed} failed`);
+    }
+    setBulkLoading(false);
+    fetchData(true);
+  }
+
+  async function bulkRemoveFromGroup(groupId: string) {
+    setBulkLoading(true);
+    const ids = [...selected];
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        apiFetch(`/api/apps/${appId}/testflight/builds/${id}/groups`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupIds: [groupId] }),
+        }),
+      ),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed === 0) {
+      toast.success(`${ok} build${ok !== 1 ? "s" : ""} removed from group`);
+    } else {
+      toast.error(`${ok} removed, ${failed} failed`);
+    }
+    setBulkLoading(false);
+    fetchData(true);
+  }
 
   if (!app) {
     return (
@@ -165,6 +306,14 @@ export default function TestFlightBuildsPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                onCheckedChange={toggleAll}
+                onClick={(e) => e.stopPropagation()}
+                aria-label="Select all builds"
+              />
+            </TableHead>
             <TableHead>Build</TableHead>
             <TableHead>Version</TableHead>
             <TableHead>Status</TableHead>
@@ -185,12 +334,23 @@ export default function TestFlightBuildsPage() {
               <TableRow
                 key={build.id}
                 className="cursor-pointer"
+                data-state={selected.has(build.id) ? "selected" : undefined}
                 onClick={() => {
                   const qs = searchParams.toString();
                   const url = `/dashboard/apps/${appId}/testflight/${build.id}${qs ? `?${qs}` : ""}`;
                   router.push(url);
                 }}
               >
+                <TableCell>
+                  {!build.expired && (
+                    <Checkbox
+                      checked={selected.has(build.id)}
+                      onCheckedChange={() => toggleOne(build.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Select build ${build.buildNumber}`}
+                    />
+                  )}
+                </TableCell>
                 <TableCell className="font-medium">
                   {build.buildNumber}
                 </TableCell>
@@ -255,6 +415,91 @@ export default function TestFlightBuildsPage() {
           })}
         </TableBody>
       </Table>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-0 flex items-center justify-between border-t bg-sidebar px-6 py-3">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="font-medium">
+              {selected.size} build{selected.size !== 1 ? "s" : ""} selected
+            </span>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-muted-foreground"
+              onClick={() => setSelected(new Set())}
+            >
+              Clear
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={bulkLoading}>
+                  <Plus size={14} className="mr-1.5" />
+                  Add to group
+                  <CaretDown size={12} className="ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {groups.map((g) => (
+                  <DropdownMenuItem key={g.id} onClick={() => bulkAddToGroup(g.id)}>
+                    {g.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={bulkLoading || relevantGroups.length === 0}
+                >
+                  <Minus size={14} className="mr-1.5" />
+                  Remove from group
+                  <CaretDown size={12} className="ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {relevantGroups.map((g) => (
+                  <DropdownMenuItem key={g.id} onClick={() => bulkRemoveFromGroup(g.id)}>
+                    {g.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkLoading}
+              onClick={() => setExpireOpen(true)}
+            >
+              {bulkLoading ? <Spinner className="mr-1.5" /> : <Prohibit size={14} className="mr-1.5" />}
+              Expire
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Expire confirmation dialog */}
+      <AlertDialog open={expireOpen} onOpenChange={setExpireOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Expire {selected.size} build{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This is irreversible. Testers will no longer be able to install {selected.size === 1 ? "this build" : "these builds"}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={bulkExpire} disabled={bulkLoading}>
+              {bulkLoading && <Spinner className="mr-1.5" />}
+              Expire {selected.size === 1 ? "build" : "builds"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

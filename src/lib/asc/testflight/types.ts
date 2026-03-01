@@ -123,6 +123,7 @@ export function deriveBuildStatus(
   switch (state) {
     case "IN_BETA_TESTING": return "Testing";
     case "READY_FOR_BETA_TESTING": return "Ready to test";
+    case "BETA_APPROVED": return "Ready to test";
     case "IN_BETA_REVIEW": return "In beta review";
     case "READY_FOR_BETA_SUBMISSION": return "Ready to submit";
     case "MISSING_EXPORT_COMPLIANCE": return "Missing compliance";
