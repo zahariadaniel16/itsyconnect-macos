@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { CaretUpDown, MagnifyingGlass } from "@phosphor-icons/react";
+import { CaretUpDown, Crown, MagnifyingGlass } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { useApps } from "@/lib/apps-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
@@ -27,7 +27,7 @@ export function AppSwitcher() {
   const pathname = usePathname();
   const { appId } = useParams<{ appId?: string }>();
   const { isMobile } = useSidebar();
-  const { apps, loading } = useApps();
+  const { apps, loading, truncated } = useApps();
   const { guardNavigation } = useFormDirty();
   const [search, setSearch] = useState("");
 
@@ -148,6 +148,15 @@ export function AppSwitcher() {
                 </DropdownMenuItem>
               ))}
             </div>
+            {truncated && (
+              <DropdownMenuItem
+                onClick={() => router.push("/settings/license")}
+                className="gap-2 p-2 text-muted-foreground"
+              >
+                <Crown size={16} />
+                <span className="text-xs">Upgrade to Pro for all apps</span>
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

@@ -3,17 +3,22 @@ import { listApps } from "@/lib/asc/apps";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { errorJson } from "@/lib/api-helpers";
+import { isPro, FREE_LIMITS } from "@/lib/license";
 
 export async function GET() {
   if (!hasCredentials()) {
-    return NextResponse.json({ apps: [], meta: null });
+    return NextResponse.json({ apps: [], meta: null, truncated: false });
   }
 
   try {
-    const apps = await listApps();
+    const allApps = await listApps();
     const meta = cacheGetMeta("apps");
+    const pro = isPro();
 
-    return NextResponse.json({ apps, meta });
+    const truncated = !pro && allApps.length > FREE_LIMITS.apps;
+    const apps = truncated ? allApps.slice(0, FREE_LIMITS.apps) : allApps;
+
+    return NextResponse.json({ apps, meta, truncated });
   } catch (err) {
     return errorJson(err);
   }

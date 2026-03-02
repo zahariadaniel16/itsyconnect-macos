@@ -40,6 +40,7 @@ import { FooterPortalProvider } from "@/lib/footer-portal-context";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { BreadcrumbProvider } from "@/lib/breadcrumb-context";
 import { ErrorReportProvider } from "@/lib/error-report-context";
+import { LicenseProvider } from "@/lib/license-context";
 import { saveNavigation } from "@/lib/nav-state";
 
 declare global {
@@ -79,6 +80,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
+    <LicenseProvider>
     <AppsProvider>
       <VersionsProvider>
       <FormDirtyProvider>
@@ -148,5 +150,6 @@ export default function DashboardLayout({
       </FormDirtyProvider>
       </VersionsProvider>
     </AppsProvider>
+    </LicenseProvider>
   );
 }

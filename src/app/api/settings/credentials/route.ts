@@ -8,6 +8,7 @@ import { ulid } from "@/lib/ulid";
 import { cacheInvalidateAll } from "@/lib/cache";
 import { resetToken } from "@/lib/asc/client";
 import { parseBody } from "@/lib/api-helpers";
+import { isPro, FREE_LIMITS } from "@/lib/license";
 
 export async function GET() {
   const credentials = db
@@ -55,6 +56,20 @@ export async function POST(request: Request) {
       { error: "A team with this issuer ID and key already exists" },
       { status: 409 },
     );
+  }
+
+  // Enforce free tier team limit
+  if (!isPro()) {
+    const count = db
+      .select({ id: ascCredentials.id })
+      .from(ascCredentials)
+      .all().length;
+    if (count >= FREE_LIMITS.teams) {
+      return NextResponse.json(
+        { error: "Free plan supports 1 team – upgrade to Pro for unlimited teams", upgrade: true },
+        { status: 403 },
+      );
+    }
   }
 
   // Deactivate existing credentials

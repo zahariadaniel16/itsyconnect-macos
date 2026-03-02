@@ -23,6 +23,8 @@ interface AppsContextValue {
   apps: App[];
   loading: boolean;
   error: ConnectionError | null;
+  /** True when the free tier app limit is hiding additional apps. */
+  truncated: boolean;
   refresh: () => Promise<void>;
   /** Update a single app in-place without refetching. */
   updateApp: (appId: string, updater: (a: App) => App) => void;
@@ -32,6 +34,7 @@ const AppsContext = createContext<AppsContextValue>({
   apps: [],
   loading: true,
   error: null,
+  truncated: false,
   refresh: async () => {},
   updateApp: () => {},
 });
@@ -58,6 +61,7 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
   const [apps, setApps] = useState<App[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ConnectionError | null>(null);
+  const [truncated, setTruncated] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -76,6 +80,7 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       const normalized = (data.apps ?? []).map(normalizeApp);
       setApps(normalized);
+      setTruncated(data.truncated === true);
       setError(null);
     } catch {
       setError({ message: "Could not connect to the server", category: "network" });
@@ -96,7 +101,7 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppsContext.Provider value={{ apps, loading, error, refresh, updateApp }}>
+    <AppsContext.Provider value={{ apps, loading, error, truncated, refresh, updateApp }}>
       {children}
     </AppsContext.Provider>
   );

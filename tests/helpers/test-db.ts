@@ -41,6 +41,17 @@ export function createTestDb() {
       app_id TEXT NOT NULL,
       completed_at TEXT NOT NULL
     );
+
+    CREATE TABLE license_activations (
+      id TEXT PRIMARY KEY NOT NULL,
+      encrypted_license_key TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      auth_tag TEXT NOT NULL,
+      encrypted_dek TEXT NOT NULL,
+      instance_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      activated_at TEXT NOT NULL
+    );
   `);
   return drizzle(sqlite, { schema });
 }
