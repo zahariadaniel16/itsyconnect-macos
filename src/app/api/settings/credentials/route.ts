@@ -91,6 +91,23 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }
 
+const renameSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1),
+});
+
+export async function PATCH(request: Request) {
+  const parsed = await parseBody(request, renameSchema);
+  if (parsed instanceof Response) return parsed;
+
+  db.update(ascCredentials)
+    .set({ name: parsed.name })
+    .where(eq(ascCredentials.id, parsed.id))
+    .run();
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");

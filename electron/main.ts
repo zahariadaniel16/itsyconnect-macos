@@ -122,11 +122,15 @@ function registerProtocolProxy(port: number): void {
 
     // Proxy dynamic requests to Next.js server
     const target = `http://127.0.0.1:${port}${pathname}${url.search}`;
-    return net.fetch(target, {
+    const opts: RequestInit & { duplex?: string } = {
       method: request.method,
       headers: request.headers,
-      body: request.body,
-    });
+    };
+    if (request.body) {
+      opts.body = request.body;
+      opts.duplex = "half";
+    }
+    return net.fetch(target, opts);
   });
 }
 

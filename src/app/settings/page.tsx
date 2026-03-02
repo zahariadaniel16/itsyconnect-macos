@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,7 @@ import {
   Trash,
   CheckCircle,
   XCircle,
+  PencilSimple,
 } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
@@ -42,6 +44,9 @@ export default function SettingsPage() {
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, "ok" | "error">>({});
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const editRef = useRef<HTMLInputElement>(null);
 
   const fetchTeams = useCallback(async () => {
     const res = await fetch("/api/settings/credentials");
@@ -102,6 +107,29 @@ export default function SettingsPage() {
     router.refresh();
   }
 
+  function startEditing(team: Team) {
+    setEditingId(team.id);
+    setEditValue(team.name || "My team");
+    setTimeout(() => editRef.current?.select(), 0);
+  }
+
+  async function saveEdit() {
+    const trimmed = editValue.trim();
+    if (!editingId || !trimmed) {
+      setEditingId(null);
+      return;
+    }
+    setEditingId(null);
+    setTeams((prev) =>
+      prev.map((t) => (t.id === editingId ? { ...t, name: trimmed } : t)),
+    );
+    await fetch("/api/settings/credentials", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editingId, name: trimmed }),
+    });
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -120,9 +148,31 @@ export default function SettingsPage() {
             className="rounded-lg border p-4 space-y-3"
           >
             <div className="flex items-center gap-2">
-              <h3 className="font-medium text-sm">
-                {team.name || "My team"}
-              </h3>
+              {editingId === team.id ? (
+                <Input
+                  ref={editRef}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={saveEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEdit();
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  className="h-7 w-48 text-sm font-medium"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEditing(team)}
+                  className="group flex items-center gap-1.5 font-medium text-sm hover:text-foreground/80"
+                >
+                  {team.name || "My team"}
+                  <PencilSimple
+                    size={13}
+                    className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </button>
+              )}
               {team.isActive && (
                 <Badge variant="secondary" className="text-xs">Active</Badge>
               )}
