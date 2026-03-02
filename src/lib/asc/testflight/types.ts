@@ -164,12 +164,15 @@ export function deriveBuildStatus(
     case "IN_BETA_TESTING": return "Testing";
     case "READY_FOR_BETA_TESTING": return "Ready to test";
     case "BETA_APPROVED": return "Ready to test";
+    case "WAITING_FOR_BETA_REVIEW": return "Waiting for review";
     case "IN_BETA_REVIEW": return "In beta review";
+    case "BETA_REJECTED": return "Rejected";
     case "READY_FOR_BETA_SUBMISSION": return "Ready to submit";
     case "MISSING_EXPORT_COMPLIANCE": return "Missing compliance";
     case "IN_EXPORT_COMPLIANCE_REVIEW": return "In compliance review";
     case "PROCESSING_EXCEPTION": return "Processing exception";
     case "EXPIRED": return "Expired";
+    case "NOT_APPLICABLE": return "N/A";
     default: return state ?? "Unknown";
   }
 }

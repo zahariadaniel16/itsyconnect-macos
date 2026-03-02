@@ -111,7 +111,11 @@ function registerProtocolProxy(port: number): void {
     // Rewrite app://itsyconnect/path to http://127.0.0.1:PORT/path
     const url = new URL(request.url);
     const target = `http://127.0.0.1:${port}${url.pathname}${url.search}`;
-    return net.fetch(target);
+    return net.fetch(target, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+    });
   });
 }
 
@@ -271,8 +275,10 @@ function createWindow(port: number): void {
     }
   });
 
-  // Use stable app:// origin so localStorage persists across launches
-  mainWindow.loadURL("app://itsyconnect/");
+  // In production, use app:// for stable origin so localStorage persists with random ports.
+  // In dev, port 3000 is fixed so load directly.
+  const origin = isDev ? `http://127.0.0.1:${port}` : "app://itsyconnect";
+  mainWindow.loadURL(`${origin}/`);
 
   ipcMain.once("app-ready", () => {
     mainWindow?.show();
@@ -316,7 +322,7 @@ if (!gotLock) {
     setupMenu();
 
     const port = isDev ? await startDevServer() : await startProdServer();
-    registerProtocolProxy(port);
+    if (!isDev) registerProtocolProxy(port);
     createWindow(port);
 
     app.on("activate", () => {
