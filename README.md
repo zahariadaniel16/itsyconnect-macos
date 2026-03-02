@@ -50,6 +50,17 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Privacy and security** – local-first architecture. All data stays on your Mac in a single SQLite file. Credentials encrypted with AES-256-GCM envelope encryption, master key stored in the macOS Keychain. No cloud, no accounts, no telemetry.
 
+## Free vs Pro
+
+Itsyconnect is free to use with one app and one developer account. A one-time Pro licence removes all limits – unlimited apps and accounts. Licences are handled via [LemonSqueezy](https://itsyconnect.lemonsqueezy.com).
+
+| | Free | Pro |
+|---|---|---|
+| Apps | 1 | Unlimited |
+| Developer accounts | 1 | Unlimited |
+| All features | Yes | Yes |
+| Price | Free | One-time purchase |
+
 ## Quick start
 
 ```bash
