@@ -356,8 +356,8 @@ if (!gotLock) {
           updateInterval: "1 hour",
           notifyUser: true,
         });
-      } catch (error) {
-        console.warn("Auto-update disabled: update-electron-app is unavailable.", error);
+      } catch {
+        console.warn("Auto-update disabled: updater dependency not bundled in this build.");
       }
     }
 
