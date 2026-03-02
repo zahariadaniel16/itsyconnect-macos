@@ -49,11 +49,11 @@ npm run electron:prepare
 echo "==> Making DMG + ZIP (signing + notarizing)..."
 npx electron-forge make
 
-# Find outputs
-DMG_PATH=$(find out/make -name "*.dmg" -type f | head -1)
+# Find outputs and rename DMG to stable filename for /releases/latest/download/Itsyconnect.dmg
+ORIG_DMG=$(find out/make -name "*.dmg" -type f | head -1)
 ZIP_PATH=$(find out/make -name "*.zip" -type f | head -1)
 
-if [ -z "$DMG_PATH" ]; then
+if [ -z "$ORIG_DMG" ]; then
   echo "ERROR: DMG not found in out/make/"
   exit 1
 fi
@@ -61,6 +61,9 @@ if [ -z "$ZIP_PATH" ]; then
   echo "ERROR: ZIP not found in out/make/"
   exit 1
 fi
+
+DMG_PATH="$(dirname "$ORIG_DMG")/Itsyconnect.dmg"
+mv "$ORIG_DMG" "$DMG_PATH"
 
 DMG_SHA=$(shasum -a 256 "$DMG_PATH" | cut -d' ' -f1)
 
