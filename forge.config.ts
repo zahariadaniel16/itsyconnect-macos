@@ -27,6 +27,9 @@ const config: ForgeConfig = {
       if (filePath === "/.next" || filePath.startsWith("/.next/standalone")) return false;
       if (filePath.startsWith("/drizzle")) return false;
       if (filePath.startsWith("/public")) return false;
+      if (filePath.startsWith("/node_modules/update-electron-app")) return false;
+      if (filePath.startsWith("/node_modules/github-url-to-object")) return false;
+      if (filePath.startsWith("/node_modules/ms")) return false;
       return true;
     },
   },
@@ -34,6 +37,8 @@ const config: ForgeConfig = {
     new MakerDMG({
       format: "ULFO",
       name: "Itsyconnect",
+      icon: "public/icon.icns",
+      overwrite: true,
     }),
 
     new MakerZIP({}),

@@ -36,18 +36,26 @@ fi
 
 VERSION=$(node -p "require('./package.json').version")
 echo "==> Building Itsyconnect v$VERSION"
+echo ""
 
-echo "==> Compiling Electron TypeScript..."
+step_start() { STEP_START=$SECONDS; echo "==> $1..."; }
+step_done() { echo "    done in $(( SECONDS - STEP_START ))s"; echo ""; }
+
+step_start "Compiling Electron TypeScript"
 npm run electron:compile
+step_done
 
-echo "==> Building Next.js..."
+step_start "Building Next.js"
 npx next build
+step_done
 
-echo "==> Preparing standalone bundle..."
+step_start "Preparing standalone bundle"
 npm run electron:prepare
+step_done
 
-echo "==> Making DMG + ZIP (signing + notarizing)..."
+step_start "Making DMG + ZIP (signing + notarizing)"
 npx electron-forge make
+step_done
 
 # Find outputs and rename DMG to stable filename for /releases/latest/download/Itsyconnect.dmg
 ORIG_DMG=$(find out/make -name "*.dmg" -type f | head -1)
@@ -67,19 +75,20 @@ mv "$ORIG_DMG" "$DMG_PATH"
 
 DMG_SHA=$(shasum -a 256 "$DMG_PATH" | cut -d' ' -f1)
 
-echo ""
 echo "==> Build complete!"
-echo "    DMG: $DMG_PATH"
-echo "    ZIP: $ZIP_PATH"
+echo "    DMG: $DMG_PATH ($(du -h "$DMG_PATH" | cut -f1 | xargs))"
+echo "    ZIP: $ZIP_PATH ($(du -h "$ZIP_PATH" | cut -f1 | xargs))"
 echo "    SHA256 (DMG): $DMG_SHA"
-
 echo ""
-echo "==> Creating draft GitHub release v$VERSION..."
+
+step_start "Creating draft GitHub release v$VERSION"
 gh release create "v$VERSION" "$DMG_PATH" "$ZIP_PATH" \
   --title "v$VERSION" \
   --draft \
   --generate-notes
+step_done
 
-echo ""
-echo "==> Done! Review the draft release on GitHub, then publish it."
+TOTAL=$(( SECONDS ))
+echo "==> All done in $(( TOTAL / 60 ))m $(( TOTAL % 60 ))s"
+echo "    Review the draft release on GitHub, then publish it."
 echo "    https://github.com/nickustinov/itsyconnect-macos/releases"
