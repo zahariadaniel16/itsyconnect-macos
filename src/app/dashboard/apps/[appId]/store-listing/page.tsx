@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Lock } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
-import { ApiError } from "@/lib/api-fetch";
+import { ApiError, apiFetch } from "@/lib/api-fetch";
 import { useErrorReport } from "@/lib/error-report-context";
 import type { SyncError } from "@/lib/api-helpers";
 import { useApps } from "@/lib/apps-context";
@@ -141,21 +141,25 @@ export default function StoreListingPage() {
   const originalBuildIdRef = useRef<string | null>(selectedVersion?.build?.id ?? null);
 
   const platform = selectedVersion?.attributes.platform;
+  const versionString = selectedVersion?.attributes.versionString;
 
-  // Fetch builds for the picker, filtered by platform
+  // Fetch builds for the picker, filtered by platform and version (lite mode skips group/metrics)
   const fetchBuilds = useCallback(
-    (refresh = false) => {
+    async (refresh = false) => {
       if (!appId) return;
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ lite: "1" });
       if (refresh) params.set("refresh", "1");
       if (platform) params.set("platform", platform);
-      const qs = params.toString();
-      fetch(`/api/apps/${appId}/testflight/builds${qs ? `?${qs}` : ""}`)
-        .then((res) => (res.ok ? res.json() : { builds: [] }))
-        .then((data) => setAllBuilds(data.builds ?? []))
-        .catch(() => setAllBuilds([]));
+      if (versionString) params.set("version", versionString);
+      try {
+        const res = await fetch(`/api/apps/${appId}/testflight/builds?${params}`);
+        const data = res.ok ? await res.json() : { builds: [] };
+        setAllBuilds(data.builds ?? []);
+      } catch {
+        setAllBuilds([]);
+      }
     },
-    [appId, platform],
+    [appId, platform, versionString],
   );
 
   // Initial fetch when app/platform changes
@@ -324,13 +328,10 @@ export default function StoreListingPage() {
         // Save build selection if changed (including removal)
         if (selectedBuildId !== originalBuildIdRef.current) {
           promises.push(
-            fetch(`/api/apps/${appId}/versions/${versionId}`, {
+            apiFetch(`/api/apps/${appId}/versions/${versionId}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ buildId: selectedBuildId }),
-            }).then(async (res) => {
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error ?? "Failed to save build selection");
             }),
           );
         }
@@ -403,7 +404,7 @@ export default function StoreListingPage() {
                   iconAssetToken: null,
                 },
               }
-            : v.build,
+            : selectedBuildId === null ? null : v.build,
           phasedRelease: phasedRelease
             ? (v.phasedRelease ?? { id: "", attributes: { phasedReleaseState: "INACTIVE", currentDayNumber: null, startDate: null } })
             : null,
@@ -580,7 +581,7 @@ export default function StoreListingPage() {
           versionString={selectedVersion?.attributes.versionString}
           onBuildChange={(id) => { setSelectedBuildId(id); setDirty(true); }}
           onBuildRemove={() => { setSelectedBuildId(null); setDirty(true); }}
-          onRefresh={() => fetchBuilds(true)}
+          onRefresh={async () => fetchBuilds(true)}
           readOnly={readOnly}
         />
 

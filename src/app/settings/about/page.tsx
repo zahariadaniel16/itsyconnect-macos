@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { GithubLogo } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { APP_VERSION, BUILD_NUMBER } from "@/lib/version";
 
 export default function AboutPage() {
@@ -35,6 +37,17 @@ export default function AboutPage() {
           <p className="font-mono text-xs mt-0.5">{BUILD_NUMBER}</p>
         </div>
       </div>
+
+      <Button variant="outline" size="sm" asChild>
+        <a
+          href="https://github.com/nickustinov/itsyconnect-macos/issues/new"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <GithubLogo size={16} />
+          Report an issue
+        </a>
+      </Button>
     </div>
   );
 }

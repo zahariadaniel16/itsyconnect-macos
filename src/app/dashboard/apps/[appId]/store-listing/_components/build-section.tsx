@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
 import { AppIcon } from "@/components/app-icon";
 import type { TFBuild } from "@/lib/asc/testflight/types";
 import type { AscBuild } from "@/lib/asc/version-types";
@@ -35,9 +36,11 @@ export function BuildSection({
   versionString: string | undefined;
   onBuildChange: (buildId: string) => void;
   onBuildRemove: () => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
   readOnly: boolean;
 }) {
+  const [loading, setLoading] = useState(false);
+
   const selectedBuild = selectedBuildId
     ? allBuilds.find((b) => b.id === selectedBuildId) ?? null
     : null;
@@ -81,15 +84,29 @@ export function BuildSection({
     );
   }
 
+  async function handleOpen(open: boolean) {
+    if (!open) return;
+    setLoading(true);
+    try {
+      await onRefresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const picker = (
-    <DropdownMenu onOpenChange={(open) => { if (open) onRefresh(); }}>
+    <DropdownMenu onOpenChange={handleOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm">
           {selectedBuild ? "Change" : "Select build"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-h-80 overflow-y-auto">
-        {eligibleBuilds.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-4">
+            <Spinner className="size-4 text-muted-foreground" />
+          </div>
+        ) : eligibleBuilds.length === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             No eligible builds for version {versionString}
           </div>

@@ -13,7 +13,8 @@ export async function GET(
   const forceRefresh = url.searchParams.get("refresh") === "1";
   const platform = url.searchParams.get("platform") ?? undefined;
   const versionString = url.searchParams.get("version") ?? undefined;
-  const filters = platform || versionString ? { platform, versionString } : undefined;
+  const lite = url.searchParams.get("lite") === "1";
+  const filters = platform || versionString || lite ? { platform, versionString, lite } : undefined;
 
   if (!hasCredentials()) {
     return NextResponse.json({ builds: [], meta: null });

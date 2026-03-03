@@ -14,10 +14,11 @@ import {
 export async function listBuilds(
   appId: string,
   forceRefresh = false,
-  filters?: { platform?: string; versionString?: string },
+  filters?: { platform?: string; versionString?: string; lite?: boolean },
 ): Promise<TFBuild[]> {
   const platform = filters?.platform;
   const versionString = filters?.versionString;
+  const lite = filters?.lite ?? false;
   const cacheKey = platform && versionString
     ? `tf-builds:${appId}:${platform}:${versionString}`
     : `tf-builds:${appId}`;
@@ -58,14 +59,16 @@ export async function listBuilds(
     }
   }
 
-  // Cross-reference builds to groups
-  const buildToGroupIds = await resolveBuildGroupMap(appId);
+  // In lite mode, skip expensive group and metrics lookups (used by store listing picker)
+  const buildToGroupIds = lite ? new Map<string, string[]>() : await resolveBuildGroupMap(appId);
 
-  // Fetch build metrics in parallel
-  const buildIds = dataArr
-    .filter((b) => (b.attributes.processingState as string) === "VALID")
-    .map((b) => b.id);
-  const metricsMap = await fetchBuildMetrics(buildIds);
+  const metricsMap = lite
+    ? new Map<string, BuildMetrics>()
+    : await fetchBuildMetrics(
+        dataArr
+          .filter((b) => (b.attributes.processingState as string) === "VALID")
+          .map((b) => b.id),
+      );
 
   const builds: TFBuild[] = dataArr.map((b) => {
     const attrs = b.attributes;
