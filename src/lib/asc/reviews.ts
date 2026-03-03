@@ -1,5 +1,6 @@
 import { ascFetch } from "./client";
-import { cacheGet, cacheSet, cacheInvalidate } from "@/lib/cache";
+import { cacheInvalidate } from "@/lib/cache";
+import { withCache } from "./helpers";
 
 const REVIEWS_TTL = 5 * 60 * 1000; // 5 min
 
@@ -50,52 +51,44 @@ export async function listCustomerReviews(
   sort: ReviewSort = "-createdDate",
   forceRefresh = false,
 ): Promise<AscCustomerReview[]> {
-  const cacheKey = `reviews:${appId}:${sort}`;
+  return withCache(`reviews:${appId}:${sort}`, REVIEWS_TTL, forceRefresh, async () => {
+    const params = new URLSearchParams({
+      "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,response",
+      "fields[customerReviewResponses]": "responseBody,lastModifiedDate,state",
+      include: "response",
+      sort,
+      limit: "200",
+    });
 
-  if (!forceRefresh) {
-    const cached = cacheGet<AscCustomerReview[]>(cacheKey);
-    if (cached) return cached;
-  }
+    const response = await ascFetch<AscCustomerReviewsResponse>(
+      `/v1/apps/${appId}/customerReviews?${params}`,
+    );
 
-  const params = new URLSearchParams({
-    "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,response",
-    "fields[customerReviewResponses]": "responseBody,lastModifiedDate,state",
-    include: "response",
-    sort,
-    limit: "200",
-  });
-
-  const response = await ascFetch<AscCustomerReviewsResponse>(
-    `/v1/apps/${appId}/customerReviews?${params}`,
-  );
-
-  // Build a lookup map for included responses
-  const responseMap = new Map<string, AscReviewResponse>();
-  if (response.included) {
-    for (const inc of response.included) {
-      if (inc.type === "customerReviewResponses") {
-        responseMap.set(inc.id, {
-          id: inc.id,
-          attributes: inc.attributes,
-        });
+    // Build a lookup map for included responses
+    const responseMap = new Map<string, AscReviewResponse>();
+    if (response.included) {
+      for (const inc of response.included) {
+        if (inc.type === "customerReviewResponses") {
+          responseMap.set(inc.id, {
+            id: inc.id,
+            attributes: inc.attributes,
+          });
+        }
       }
     }
-  }
 
-  // Merge responses inline
-  const reviews: AscCustomerReview[] = response.data.map((r) => {
-    const responseRef = r.relationships?.response?.data;
-    const reviewResponse = responseRef ? responseMap.get(responseRef.id) : undefined;
+    // Merge responses inline
+    return response.data.map((r) => {
+      const responseRef = r.relationships?.response?.data;
+      const reviewResponse = responseRef ? responseMap.get(responseRef.id) : undefined;
 
-    return {
-      id: r.id,
-      attributes: r.attributes,
-      ...(reviewResponse ? { response: reviewResponse } : {}),
-    };
+      return {
+        id: r.id,
+        attributes: r.attributes,
+        ...(reviewResponse ? { response: reviewResponse } : {}),
+      };
+    });
   });
-
-  cacheSet(cacheKey, reviews, REVIEWS_TTL);
-  return reviews;
 }
 
 export async function createReviewResponse(

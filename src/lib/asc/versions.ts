@@ -1,5 +1,5 @@
 import { ascFetch } from "./client";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { withCache } from "./helpers";
 import type { AscBuild, AscPhasedRelease, AscReviewDetail, AscVersion } from "./version-types";
 
 const VERSIONS_TTL = 15 * 60 * 1000; // 15 min
@@ -66,23 +66,16 @@ export async function listVersions(
   appId: string,
   forceRefresh = false,
 ): Promise<AscVersion[]> {
-  const cacheKey = `versions:${appId}`;
+  return withCache(`versions:${appId}`, VERSIONS_TTL, forceRefresh, async () => {
+    const response = await ascFetch<AscVersionsResponse>(
+      `/v1/apps/${appId}/appStoreVersions` +
+        `?fields[appStoreVersions]=versionString,appVersionState,appStoreState,platform,copyright,releaseType,earliestReleaseDate,downloadable,createdDate,build,appStoreReviewDetail,appStoreVersionPhasedRelease` +
+        `&include=build,appStoreReviewDetail,appStoreVersionPhasedRelease` +
+        `&fields[builds]=version,uploadedDate,processingState,minOsVersion,iconAssetToken` +
+        `&fields[appStoreReviewDetails]=contactEmail,contactFirstName,contactLastName,contactPhone,demoAccountName,demoAccountPassword,demoAccountRequired,notes` +
+        `&fields[appStoreVersionPhasedReleases]=phasedReleaseState,currentDayNumber,startDate`,
+    );
 
-  if (!forceRefresh) {
-    const cached = cacheGet<AscVersion[]>(cacheKey);
-    if (cached) return cached;
-  }
-
-  const response = await ascFetch<AscVersionsResponse>(
-    `/v1/apps/${appId}/appStoreVersions` +
-      `?fields[appStoreVersions]=versionString,appVersionState,appStoreState,platform,copyright,releaseType,earliestReleaseDate,downloadable,createdDate,build,appStoreReviewDetail,appStoreVersionPhasedRelease` +
-      `&include=build,appStoreReviewDetail,appStoreVersionPhasedRelease` +
-      `&fields[builds]=version,uploadedDate,processingState,minOsVersion,iconAssetToken` +
-      `&fields[appStoreReviewDetails]=contactEmail,contactFirstName,contactLastName,contactPhone,demoAccountName,demoAccountPassword,demoAccountRequired,notes` +
-      `&fields[appStoreVersionPhasedReleases]=phasedReleaseState,currentDayNumber,startDate`,
-  );
-
-  const versions = resolveIncluded(response);
-  cacheSet(cacheKey, versions, VERSIONS_TTL);
-  return versions;
+    return resolveIncluded(response);
+  });
 }

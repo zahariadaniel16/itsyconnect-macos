@@ -1,5 +1,6 @@
 import { ascFetch } from "../client";
-import { cacheGet, cacheSet, cacheInvalidatePrefix } from "@/lib/cache";
+import { cacheInvalidatePrefix } from "@/lib/cache";
+import { withCache, normalizeArray } from "../helpers";
 import {
   INFO_TTL,
   type TFBetaAppLocalization,
@@ -15,13 +16,7 @@ export async function getBetaAppInfo(
   appId: string,
   forceRefresh = false,
 ): Promise<TFBetaAppInfo> {
-  const cacheKey = `tf-info:${appId}`;
-
-  if (!forceRefresh) {
-    const cached = cacheGet<TFBetaAppInfo>(cacheKey);
-    if (cached) return cached;
-  }
-
+  return withCache(`tf-info:${appId}`, INFO_TTL, forceRefresh, async () => {
   const [locRes, reviewRes, licenseRes] = await Promise.all([
     ascFetch<AscJsonApiResponse>(
       `/v1/betaAppLocalizations?filter[app]=${appId}&fields[betaAppLocalizations]=description,feedbackEmail,locale,marketingUrl,privacyPolicyUrl`,
@@ -35,7 +30,7 @@ export async function getBetaAppInfo(
   ]);
 
   // Localizations
-  const locArr = Array.isArray(locRes.data) ? locRes.data : locRes.data ? [locRes.data] : [];
+  const locArr = normalizeArray(locRes.data);
   const localizations: TFBetaAppLocalization[] = locArr.map((l) => ({
     id: l.id,
     locale: l.attributes.locale as string,
@@ -46,7 +41,7 @@ export async function getBetaAppInfo(
   }));
 
   // Review detail
-  const reviewArr = Array.isArray(reviewRes.data) ? reviewRes.data : reviewRes.data ? [reviewRes.data] : [];
+  const reviewArr = normalizeArray(reviewRes.data);
   const reviewData = reviewArr[0];
   const reviewDetail: TFBetaReviewDetail | null = reviewData
     ? {
@@ -63,7 +58,7 @@ export async function getBetaAppInfo(
     : null;
 
   // License agreement
-  const licenseArr = Array.isArray(licenseRes.data) ? licenseRes.data : licenseRes.data ? [licenseRes.data] : [];
+  const licenseArr = normalizeArray(licenseRes.data);
   const licenseData = licenseArr[0];
   const licenseAgreement: TFBetaLicenseAgreement | null = licenseData
     ? {
@@ -72,9 +67,8 @@ export async function getBetaAppInfo(
       }
     : null;
 
-  const info: TFBetaAppInfo = { localizations, reviewDetail, licenseAgreement };
-  cacheSet(cacheKey, info, INFO_TTL);
-  return info;
+  return { localizations, reviewDetail, licenseAgreement };
+  });
 }
 
 // ── Beta app info mutations ──────────────────────────────────────

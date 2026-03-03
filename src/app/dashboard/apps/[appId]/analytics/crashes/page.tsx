@@ -16,13 +16,12 @@ import {
 } from "@phosphor-icons/react";
 import { useAnalytics } from "@/lib/analytics-context";
 import { KpiCard } from "@/components/kpi-card";
-import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
+import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 
 // ---------- Page ----------
 
 export default function CrashesPage() {
-  const { data, loading, error, pending } = useAnalytics();
+  const { data } = useAnalytics();
 
   const crashesByVersion = data?.crashesByVersion ?? [];
   const crashesByDevice = data?.crashesByDevice ?? [];
@@ -30,39 +29,8 @@ export default function CrashesPage() {
   const totalCrashes = crashesByVersion.reduce((s, c) => s + c.crashes, 0);
   const totalAffected = crashesByVersion.reduce((s, c) => s + c.uniqueDevices, 0);
 
-  if (loading && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (pending && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Fetching analytics data – this may take a moment on first load
-        </p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
   return (
+    <AnalyticsStateGuard>
     <div className="space-y-6">
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -163,5 +131,6 @@ export default function CrashesPage() {
         </Card>
       </div>
     </div>
+    </AnalyticsStateGuard>
   );
 }

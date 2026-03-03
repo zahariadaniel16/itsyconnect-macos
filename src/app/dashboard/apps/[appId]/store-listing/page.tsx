@@ -24,6 +24,7 @@ import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
 import { computeChecklistFlags } from "@/lib/submission-checklist-utils";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
+import { useLocaleHandlers } from "@/lib/hooks/use-locale-handlers";
 import type { MagicWandLocaleProps, CopyFromVersion } from "@/components/magic-wand-button";
 import { BulkAIDialog, type BulkField } from "@/components/bulk-ai-dialog";
 import { BulkAllAIDialog } from "@/components/bulk-all-ai-dialog";
@@ -480,63 +481,16 @@ export default function StoreListingPage() {
     setDirty(true);
   }
 
-  function handleAddLocale(locale: string) {
-    setLocaleData((prev) => {
-      const base = prev[primaryLocale] ?? emptyLocaleFields();
-      const next = { ...prev, [locale]: { ...base } };
-      setLocales(sortLocales(Object.keys(next), primaryLocale));
-      return next;
-    });
-    changeLocale(locale);
-    setDirty(true);
-    toast.success(`Added ${localeName(locale)}`);
-  }
-
-  function handleBulkAddLocales(codes: string[]) {
-    setLocaleData((prev) => {
-      const base = prev[primaryLocale] ?? emptyLocaleFields();
-      const next = { ...prev };
-      for (const code of codes) {
-        if (!next[code]) next[code] = { ...base };
-      }
-      setLocales(sortLocales(Object.keys(next), primaryLocale));
-      return next;
-    });
-    setDirty(true);
-    toast.success(`Added ${codes.length} locales`);
-  }
-
-  function handleDeleteLocale(code: string) {
-    const deletedData = localeData[code];
-    const needsLocaleSwitch = selectedLocale === code;
-    setLocaleData((prev) => {
-      const next = { ...prev };
-      delete next[code];
-      setLocales(sortLocales(Object.keys(next), primaryLocale));
-      return next;
-    });
-    if (needsLocaleSwitch) {
-      const remaining = sortLocales(
-        Object.keys(localeData).filter((c) => c !== code),
-        primaryLocale,
-      );
-      changeLocale(remaining[0] ?? "");
-    }
-    setDirty(true);
-    toast(`Removed ${localeName(code)}`, {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          setLocaleData((prev) => {
-            const next = { ...prev, [code]: deletedData ?? emptyLocaleFields() };
-            setLocales(sortLocales(Object.keys(next), primaryLocale));
-            return next;
-          });
-          setDirty(true);
-        },
-      },
-    });
-  }
+  const { handleAddLocale, handleBulkAddLocales, handleDeleteLocale } = useLocaleHandlers({
+    localeData,
+    setLocaleData,
+    setLocales,
+    selectedLocale,
+    changeLocale,
+    primaryLocale,
+    setDirty,
+    emptyFields: emptyLocaleFields,
+  });
 
   // Register locale picker in the header bar
   useRegisterHeaderLocale({

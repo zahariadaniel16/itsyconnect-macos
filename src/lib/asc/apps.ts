@@ -1,5 +1,6 @@
 import { ascFetch } from "./client";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { cacheSet } from "@/lib/cache";
+import { withCache } from "./helpers";
 
 const APPS_TTL = 60 * 60 * 1000; // 1 hour
 
@@ -82,27 +83,21 @@ async function fetchBuildIconUrls(
 }
 
 export async function listApps(forceRefresh = false): Promise<AscApp[]> {
-  if (!forceRefresh) {
-    const cached = cacheGet<AscApp[]>("apps");
-    if (cached) return cached;
-  }
+  return withCache("apps", APPS_TTL, forceRefresh, async () => {
+    const response = await ascFetch<AscAppsResponse>(
+      "/v1/apps?fields[apps]=name,bundleId,sku,primaryLocale,contentRightsDeclaration,subscriptionStatusUrl,subscriptionStatusUrlForSandbox&sort=name&limit=200",
+    );
 
-  const response = await ascFetch<AscAppsResponse>(
-    "/v1/apps?fields[apps]=name,bundleId,sku,primaryLocale,contentRightsDeclaration,subscriptionStatusUrl,subscriptionStatusUrlForSandbox&sort=name&limit=200",
-  );
+    const iconUrls = await fetchBuildIconUrls(response.data.map((a) => a.id));
 
-  const iconUrls = await fetchBuildIconUrls(response.data.map((a) => a.id));
-
-  const apps: AscApp[] = response.data.map((a) => ({
-    id: a.id,
-    attributes: {
-      ...a.attributes,
-      iconUrl: iconUrls.get(a.id) ?? null,
-    },
-  }));
-
-  cacheSet("apps", apps, APPS_TTL);
-  return apps;
+    return response.data.map((a) => ({
+      id: a.id,
+      attributes: {
+        ...a.attributes,
+        iconUrl: iconUrls.get(a.id) ?? null,
+      },
+    }));
+  });
 }
 
 export async function updateAppAttributes(

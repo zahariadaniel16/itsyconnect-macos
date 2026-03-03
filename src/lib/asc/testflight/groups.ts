@@ -2,6 +2,7 @@ import { ascFetch } from "../client";
 import { buildIconUrl } from "../apps";
 import { fetchBuildMetrics } from "./builds";
 import { cacheGet, cacheSet, cacheInvalidatePrefix } from "@/lib/cache";
+import { withCache, normalizeArray } from "../helpers";
 import {
   GROUPS_TTL,
   GROUP_DETAIL_TTL,
@@ -20,13 +21,7 @@ export async function listGroups(
   appId: string,
   forceRefresh = false,
 ): Promise<TFGroup[]> {
-  const cacheKey = `tf-groups:${appId}`;
-
-  if (!forceRefresh) {
-    const cached = cacheGet<TFGroup[]>(cacheKey);
-    if (cached) return cached;
-  }
-
+  return withCache(`tf-groups:${appId}`, GROUPS_TTL, forceRefresh, async () => {
   const params = new URLSearchParams({
     "filter[app]": appId,
     "fields[betaGroups]": "name,isInternalGroup,publicLinkEnabled,publicLink,publicLinkLimit,publicLinkLimitEnabled,feedbackEnabled,hasAccessToAllBuilds,createdDate",
@@ -37,7 +32,7 @@ export async function listGroups(
     `/v1/betaGroups?${params}`,
   );
 
-  const dataArr = Array.isArray(response.data) ? response.data : [response.data];
+  const dataArr = normalizeArray(response.data);
 
   // Fetch tester and build counts per group in parallel
   const countResults = await Promise.allSettled(
@@ -79,8 +74,8 @@ export async function listGroups(
     };
   });
 
-  cacheSet(cacheKey, groups, GROUPS_TTL);
   return groups;
+  });
 }
 
 // ── Group detail ─────────────────────────────────────────────────
@@ -116,8 +111,8 @@ export async function getGroupDetail(
   if (!gData) return null;
   const gAttrs = gData.attributes;
 
-  const testerDataArr = Array.isArray(testersRes.data) ? testersRes.data : testersRes.data ? [testersRes.data] : [];
-  const allBuildDataArr = Array.isArray(buildsRes.data) ? buildsRes.data : buildsRes.data ? [buildsRes.data] : [];
+  const testerDataArr = normalizeArray(testersRes.data);
+  const allBuildDataArr = normalizeArray(buildsRes.data);
   // Skip expired builds – avoids unnecessary detail fetches and they're hidden in the UI
   const buildDataArr = allBuildDataArr.filter((b) => !(b.attributes.expired as boolean));
 

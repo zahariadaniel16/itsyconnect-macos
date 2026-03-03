@@ -31,8 +31,7 @@ import { formatDateShort } from "@/lib/format";
 import { useAnalytics } from "@/lib/analytics-context";
 import { parseRange, filterByDateRange, previousRange, pctChange } from "@/lib/analytics-range";
 import { KpiCard } from "@/components/kpi-card";
-import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
+import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 import { EmptyState } from "@/components/empty-state";
 
 // ---------- Chart configs ----------
@@ -62,7 +61,7 @@ const funnelConfig = {
 
 export default function AnalyticsOverviewPage() {
   const searchParams = useSearchParams();
-  const { data, loading, error, pending, lastDate } = useAnalytics();
+  const { data, lastDate } = useAnalytics();
   const range = useMemo(() => parseRange(searchParams.get("range"), lastDate), [searchParams, lastDate]);
   const prevRange = useMemo(() => previousRange(range), [range]);
 
@@ -141,47 +140,15 @@ export default function AnalyticsOverviewPage() {
     { stage: "downloads", value: totalFirstTime, fill: "var(--color-downloads)" },
   ];
 
-  if (loading && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (pending && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Fetching analytics data – this may take a moment on first load
-        </p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  const isEmpty = data.dailyDownloads.length === 0
-    && data.dailySessions.length === 0
-    && data.dailyEngagement.length === 0;
-
-  if (isEmpty) {
-    return <EmptyState title="No analytics data" description="No analytics data is available for this app yet." />;
-  }
+  const isEmpty = (data?.dailyDownloads.length ?? 0) === 0
+    && (data?.dailySessions.length ?? 0) === 0
+    && (data?.dailyEngagement.length ?? 0) === 0;
 
   return (
+    <AnalyticsStateGuard>
+    {isEmpty ? (
+      <EmptyState title="No analytics data" description="No analytics data is available for this app yet." />
+    ) : (
     <div className="space-y-6">
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -435,5 +402,7 @@ export default function AnalyticsOverviewPage() {
         </Card>
       </div>
     </div>
+    )}
+    </AnalyticsStateGuard>
   );
 }

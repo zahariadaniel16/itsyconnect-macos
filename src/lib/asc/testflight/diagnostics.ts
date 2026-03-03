@@ -1,5 +1,5 @@
 import { ascFetch, AscApiError } from "../client";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { withCache, normalizeArray } from "../helpers";
 import {
   DIAGNOSTICS_TTL,
   type TFDiagnosticType,
@@ -20,48 +20,41 @@ export async function listDiagnosticSignatures(
     ? `tf-diagnostics:${buildId}:${type}`
     : `tf-diagnostics:${buildId}`;
 
-  if (!forceRefresh) {
-    const cached = cacheGet<TFDiagnosticSignature[]>(cacheKey);
-    if (cached) return cached;
-  }
+  return withCache(cacheKey, DIAGNOSTICS_TTL, forceRefresh, async () => {
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (type) {
+        params.set("filter[diagnosticType]", type);
+      }
 
-  try {
-    const params = new URLSearchParams({ limit: "200" });
-    if (type) {
-      params.set("filter[diagnosticType]", type);
+      const response = await ascFetch<{
+        data: Array<{
+          id: string;
+          attributes: {
+            diagnosticType: TFDiagnosticType;
+            signature: string;
+            weight: number;
+          };
+        }>;
+      }>(`/v1/builds/${buildId}/diagnosticSignatures?${params}`);
+
+      const dataArr = normalizeArray(response.data);
+      return dataArr.map((item) => ({
+        id: item.id,
+        diagnosticType: item.attributes.diagnosticType,
+        signature: item.attributes.signature,
+        weight: item.attributes.weight,
+      }));
+    } catch (err) {
+      // 404 is expected – not all builds have diagnostics (e.g. macOS builds).
+      // Cache the empty result so we don't re-hit the API on every mount.
+      const is404 = err instanceof AscApiError && err.ascError.statusCode === 404;
+      if (!is404) {
+        console.warn(`[diagnostics] signatures for build ${buildId} failed:`, err);
+      }
+      return [];
     }
-
-    const response = await ascFetch<{
-      data: Array<{
-        id: string;
-        attributes: {
-          diagnosticType: TFDiagnosticType;
-          signature: string;
-          weight: number;
-        };
-      }>;
-    }>(`/v1/builds/${buildId}/diagnosticSignatures?${params}`);
-
-    const dataArr = Array.isArray(response.data) ? response.data : [];
-    const signatures: TFDiagnosticSignature[] = dataArr.map((item) => ({
-      id: item.id,
-      diagnosticType: item.attributes.diagnosticType,
-      signature: item.attributes.signature,
-      weight: item.attributes.weight,
-    }));
-
-    cacheSet(cacheKey, signatures, DIAGNOSTICS_TTL);
-    return signatures;
-  } catch (err) {
-    // 404 is expected – not all builds have diagnostics (e.g. macOS builds).
-    // Cache the empty result so we don't re-hit the API on every mount.
-    const is404 = err instanceof AscApiError && err.ascError.statusCode === 404;
-    if (!is404) {
-      console.warn(`[diagnostics] signatures for build ${buildId} failed:`, err);
-    }
-    cacheSet(cacheKey, [], DIAGNOSTICS_TTL);
-    return [];
-  }
+  });
 }
 
 // ── Diagnostic logs ───────────────────────────────────────────────
@@ -90,8 +83,7 @@ export async function getDiagnosticLogs(
       }>;
     }>(`/v1/diagnosticSignatures/${signatureId}/logs`);
 
-    const dataArr = Array.isArray(response.data) ? response.data : [];
-    return dataArr.map((item) => {
+    return normalizeArray(response.data).map((item) => {
       const attrs = item.attributes;
 
       // Parse call stack tree

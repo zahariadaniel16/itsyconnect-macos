@@ -1,5 +1,6 @@
 import { ascFetch } from "../client";
-import { cacheGet, cacheSet, cacheInvalidatePrefix } from "@/lib/cache";
+import { cacheInvalidatePrefix } from "@/lib/cache";
+import { withCache, normalizeArray } from "../helpers";
 import {
   FEEDBACK_TTL,
   type TFFeedbackItem,
@@ -14,46 +15,38 @@ export async function listFeedback(
   appId: string,
   forceRefresh = false,
 ): Promise<TFFeedbackItem[]> {
-  const cacheKey = `tf-feedback:${appId}`;
+  return withCache(`tf-feedback:${appId}`, FEEDBACK_TTL, forceRefresh, async () => {
+    const sharedParams = new URLSearchParams({
+      "include": "build,tester",
+      "sort": "-createdDate",
+      "limit": "200",
+      "fields[betaTesters]": "firstName,lastName,email",
+      "fields[builds]": "version",
+    });
 
-  if (!forceRefresh) {
-    const cached = cacheGet<TFFeedbackItem[]>(cacheKey);
-    if (cached) return cached;
-  }
+    const [screenshotRes, crashRes] = await Promise.all([
+      ascFetch<AscJsonApiResponse>(
+        `/v1/apps/${appId}/betaFeedbackScreenshotSubmissions?${sharedParams}`,
+      ),
+      ascFetch<AscJsonApiResponse>(
+        `/v1/apps/${appId}/betaFeedbackCrashSubmissions?${sharedParams}`,
+      ),
+    ]);
 
-  const sharedParams = new URLSearchParams({
-    "include": "build,tester",
-    "sort": "-createdDate",
-    "limit": "200",
-    "fields[betaTesters]": "firstName,lastName,email",
-    "fields[builds]": "version",
+    const screenshotItems = parseSubmissions(screenshotRes, "screenshot");
+    const crashItems = parseSubmissions(crashRes, "crash");
+
+    return [...screenshotItems, ...crashItems].sort(
+      (a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime(),
+    );
   });
-
-  const [screenshotRes, crashRes] = await Promise.all([
-    ascFetch<AscJsonApiResponse>(
-      `/v1/apps/${appId}/betaFeedbackScreenshotSubmissions?${sharedParams}`,
-    ),
-    ascFetch<AscJsonApiResponse>(
-      `/v1/apps/${appId}/betaFeedbackCrashSubmissions?${sharedParams}`,
-    ),
-  ]);
-
-  const screenshotItems = parseSubmissions(screenshotRes, "screenshot");
-  const crashItems = parseSubmissions(crashRes, "crash");
-
-  const merged = [...screenshotItems, ...crashItems].sort(
-    (a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime(),
-  );
-
-  cacheSet(cacheKey, merged, FEEDBACK_TTL);
-  return merged;
 }
 
 function parseSubmissions(
   response: AscJsonApiResponse,
   type: "screenshot" | "crash",
 ): TFFeedbackItem[] {
-  const dataArr = Array.isArray(response.data) ? response.data : [response.data];
+  const dataArr = normalizeArray(response.data);
 
   const includedMap = new Map<string, AscJsonApiResource>();
   if (response.included) {

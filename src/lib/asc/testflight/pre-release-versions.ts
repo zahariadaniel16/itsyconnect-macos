@@ -1,5 +1,5 @@
 import { ascFetch } from "../client";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { withCache, normalizeArray } from "../helpers";
 import { BUILDS_TTL } from "./types";
 import type { PreReleaseVersion } from "../version-types";
 
@@ -9,32 +9,22 @@ export async function listPreReleaseVersions(
   appId: string,
   forceRefresh = false,
 ): Promise<PreReleaseVersion[]> {
-  const cacheKey = `${CACHE_PREFIX}:${appId}`;
+  return withCache(`${CACHE_PREFIX}:${appId}`, BUILDS_TTL, forceRefresh, async () => {
+    const params = new URLSearchParams({
+      "filter[app]": appId,
+      "fields[preReleaseVersions]": "version,platform",
+      sort: "-version",
+      limit: "200",
+    });
 
-  if (!forceRefresh) {
-    const cached = cacheGet<PreReleaseVersion[]>(cacheKey);
-    if (cached) return cached;
-  }
+    const response = await ascFetch<{
+      data: Array<{ id: string; type: string; attributes: Record<string, unknown> }> | { id: string; type: string; attributes: Record<string, unknown> };
+    }>(`/v1/preReleaseVersions?${params}`);
 
-  const params = new URLSearchParams({
-    "filter[app]": appId,
-    "fields[preReleaseVersions]": "version,platform",
-    sort: "-version",
-    limit: "200",
+    return normalizeArray(response.data).map((d) => ({
+      id: d.id,
+      version: d.attributes.version as string,
+      platform: d.attributes.platform as string,
+    }));
   });
-
-  const response = await ascFetch<{
-    data: Array<{ id: string; type: string; attributes: Record<string, unknown> }> | { id: string; type: string; attributes: Record<string, unknown> };
-  }>(`/v1/preReleaseVersions?${params}`);
-
-  const dataArr = Array.isArray(response.data) ? response.data : [response.data];
-
-  const versions: PreReleaseVersion[] = dataArr.map((d) => ({
-    id: d.id,
-    version: d.attributes.version as string,
-    platform: d.attributes.platform as string,
-  }));
-
-  cacheSet(cacheKey, versions, BUILDS_TTL);
-  return versions;
 }

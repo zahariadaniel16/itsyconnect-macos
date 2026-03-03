@@ -1,6 +1,7 @@
 import { ascFetch } from "../client";
 import { buildIconUrl } from "../apps";
-import { cacheGet, cacheSet, cacheInvalidatePrefix } from "@/lib/cache";
+import { cacheInvalidatePrefix } from "@/lib/cache";
+import { withCache, normalizeArray } from "../helpers";
 import { listGroups } from "./groups";
 import {
   BUILDS_TTL,
@@ -23,11 +24,7 @@ export async function listBuilds(
     ? `tf-builds:${appId}:${platform}:${versionString}`
     : `tf-builds:${appId}`;
 
-  if (!forceRefresh) {
-    const cached = cacheGet<TFBuild[]>(cacheKey);
-    if (cached) return cached;
-  }
-
+  return withCache(cacheKey, BUILDS_TTL, forceRefresh, async () => {
   const params = new URLSearchParams({
     "filter[app]": appId,
     sort: "-uploadedDate",
@@ -49,7 +46,7 @@ export async function listBuilds(
     `/v1/builds?${params}`,
   );
 
-  const dataArr = Array.isArray(response.data) ? response.data : [response.data];
+  const dataArr = normalizeArray(response.data);
 
   // Build included lookup maps
   const includedMap = new Map<string, { id: string; type: string; attributes: Record<string, unknown> }>();
@@ -127,8 +124,8 @@ export async function listBuilds(
     };
   });
 
-  cacheSet(cacheKey, builds, BUILDS_TTL);
   return builds;
+  });
 }
 
 // ── Build metrics ────────────────────────────────────────────────
@@ -209,7 +206,7 @@ async function resolveBuildGroupMap(
       const res = await ascFetch<AscJsonApiResponse>(
         `/v1/betaGroups/${group.id}/builds?fields[builds]=version&limit=200`,
       );
-      const builds = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      const builds = normalizeArray(res.data);
       return { groupId: group.id, buildIds: builds.map((b) => b.id) };
     }),
   );

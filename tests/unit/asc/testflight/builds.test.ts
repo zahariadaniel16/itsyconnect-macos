@@ -911,7 +911,9 @@ describe("listBuilds – branch coverage", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].groupIds).toEqual([]);
-    expect(result[0].metrics).toBeUndefined();
+    expect(result[0].installs).toBe(0);
+    expect(result[0].sessions).toBe(0);
+    expect(result[0].crashes).toBe(0);
     // listGroups should not have been called
     expect(mockListGroups).not.toHaveBeenCalled();
   });

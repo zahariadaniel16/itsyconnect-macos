@@ -13,8 +13,7 @@ import {
 } from "@/components/ui/chart";
 import { Warning } from "@phosphor-icons/react";
 import { useAnalytics } from "@/lib/analytics-context";
-import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
+import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 import { EmptyState } from "@/components/empty-state";
 import type { PerfMetricSeries } from "@/lib/asc/analytics";
 
@@ -120,55 +119,26 @@ function buildChartData(group: MetricGroup): {
 // ---------- Page ----------
 
 export default function PerformancePage() {
-  const { data, loading, error, pending } = useAnalytics();
+  const { data } = useAnalytics();
 
   const perfMetrics = data?.perfMetrics ?? [];
   const perfRegressions = data?.perfRegressions ?? [];
 
   const groups = useMemo(() => groupMetrics(perfMetrics), [perfMetrics]);
 
-  if (loading && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (pending && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Fetching analytics data – this may take a moment on first load
-        </p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
   if (perfMetrics.length === 0 && perfRegressions.length === 0) {
     return (
+      <AnalyticsStateGuard>
       <EmptyState
         title="No performance data"
         description="Requires enough users with diagnostics sharing enabled."
       />
+      </AnalyticsStateGuard>
     );
   }
 
   return (
+    <AnalyticsStateGuard>
     <div className="space-y-6">
       {/* Regression callout cards */}
       {perfRegressions.length > 0 && (
@@ -199,6 +169,7 @@ export default function PerformancePage() {
         <MetricGroupChart key={group.key} group={group} />
       ))}
     </div>
+    </AnalyticsStateGuard>
   );
 }
 

@@ -1,5 +1,6 @@
 import { ascFetch } from "../client";
 import { cacheInvalidatePrefix } from "@/lib/cache";
+import { normalizeArray } from "../helpers";
 import type { TFTester, AscJsonApiResponse } from "./types";
 
 // ── Individual testers on builds ──────────────────────────────────
@@ -11,9 +12,7 @@ export async function listBuildIndividualTesters(
     `/v1/builds/${buildId}/individualTesters?fields[betaTesters]=firstName,lastName,email,inviteType,state&limit=200`,
   );
 
-  const dataArr = Array.isArray(response.data)
-    ? response.data
-    : response.data ? [response.data] : [];
+  const dataArr = normalizeArray(response.data);
 
   return dataArr.map((t) => {
     const attrs = t.attributes;
@@ -64,9 +63,7 @@ export async function listAppBetaTesters(
     `/v1/betaTesters?filter[apps]=${appId}&fields[betaTesters]=firstName,lastName,email,inviteType,state&limit=200`,
   );
 
-  const dataArr = Array.isArray(response.data)
-    ? response.data
-    : response.data ? [response.data] : [];
+  const dataArr = normalizeArray(response.data);
 
   return dataArr.map((t) => {
     const attrs = t.attributes;

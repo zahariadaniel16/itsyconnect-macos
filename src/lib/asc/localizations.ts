@@ -1,5 +1,5 @@
 import { ascFetch } from "./client";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { withCache } from "./helpers";
 
 const LOCALIZATIONS_TTL = 15 * 60 * 1000; // 15 min
 
@@ -28,23 +28,15 @@ export async function listLocalizations(
   versionId: string,
   forceRefresh = false,
 ): Promise<AscLocalization[]> {
-  const cacheKey = `localizations:${versionId}`;
+  return withCache(`localizations:${versionId}`, LOCALIZATIONS_TTL, forceRefresh, async () => {
+    const response = await ascFetch<AscLocalizationsResponse>(
+      `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations` +
+        `?fields[appStoreVersionLocalizations]=locale,description,keywords,marketingUrl,promotionalText,supportUrl,whatsNew`,
+    );
 
-  if (!forceRefresh) {
-    const cached = cacheGet<AscLocalization[]>(cacheKey);
-    if (cached) return cached;
-  }
-
-  const response = await ascFetch<AscLocalizationsResponse>(
-    `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations` +
-      `?fields[appStoreVersionLocalizations]=locale,description,keywords,marketingUrl,promotionalText,supportUrl,whatsNew`,
-  );
-
-  const localizations: AscLocalization[] = response.data.map((l) => ({
-    id: l.id,
-    attributes: l.attributes,
-  }));
-
-  cacheSet(cacheKey, localizations, LOCALIZATIONS_TTL);
-  return localizations;
+    return response.data.map((l) => ({
+      id: l.id,
+      attributes: l.attributes,
+    }));
+  });
 }

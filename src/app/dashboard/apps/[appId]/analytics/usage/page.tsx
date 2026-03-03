@@ -25,8 +25,7 @@ import {
 import { formatDateShort } from "@/lib/format";
 import { useAnalytics } from "@/lib/analytics-context";
 import { parseRange, filterByDateRange } from "@/lib/analytics-range";
-import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
+import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 
 // ---------- Chart configs ----------
 
@@ -62,7 +61,7 @@ const VERSION_COLORS = [
 
 export default function UsagePage() {
   const searchParams = useSearchParams();
-  const { data, loading, error, pending, lastDate } = useAnalytics();
+  const { data, lastDate } = useAnalytics();
   const range = useMemo(() => parseRange(searchParams.get("range"), lastDate), [searchParams, lastDate]);
 
   const sessions = useMemo(
@@ -114,39 +113,8 @@ export default function UsagePage() {
       ? ((totalOptingIn / totalDownloading) * 100).toFixed(1)
       : "0";
 
-  if (loading && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (pending && !data) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Spinner className="size-6 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Fetching analytics data – this may take a moment on first load
-        </p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
   return (
+    <AnalyticsStateGuard>
     <div className="space-y-6">
       {/* Row 1: Sessions + duration */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -403,5 +371,6 @@ export default function UsagePage() {
         </Card>
       </div>
     </div>
+    </AnalyticsStateGuard>
   );
 }
