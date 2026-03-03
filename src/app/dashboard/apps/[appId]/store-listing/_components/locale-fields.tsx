@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CharCount } from "@/components/char-count";
+import { KeywordTagInput } from "@/components/keyword-tag-input";
 import { FIELD_LIMITS, FIELD_MIN_LIMITS } from "@/lib/asc/locale-names";
 import { MagicWandButton, wandProps } from "@/components/magic-wand-button";
 import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
@@ -157,12 +158,10 @@ export function LocaleFieldsSection({
         </div>
         <Card className="gap-0 py-0">
           <CardContent className="px-5 py-4">
-            <Input
+            <KeywordTagInput
               value={current.keywords}
-              onChange={(e) => onFieldChange("keywords", e.target.value)}
+              onChange={(v) => onFieldChange("keywords", v)}
               readOnly={readOnly}
-              placeholder="keyword1,keyword2,keyword3"
-              className="border-0 p-0 shadow-none focus-visible:ring-0 text-sm h-auto dark:bg-transparent"
             />
           </CardContent>
           <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
