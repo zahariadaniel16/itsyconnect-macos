@@ -18,6 +18,7 @@ import {
   createVersion,
   deleteVersion,
   cancelSubmission,
+  submitForReview,
   releaseVersion,
   selectBuildForVersion,
   invalidateVersionsCache,
@@ -136,6 +137,45 @@ describe("version-mutations", () => {
         "/v1/appStoreVersionSubmissions/sub-1",
         expect.objectContaining({ method: "DELETE" }),
       );
+    });
+  });
+
+  describe("submitForReview", () => {
+    it("creates submission, adds version item, then confirms", async () => {
+      mockAscFetch
+        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // step 1: create submission
+        .mockResolvedValueOnce({}) // step 2: add item
+        .mockResolvedValueOnce({}); // step 3: confirm
+
+      await submitForReview("app-1", "ver-1", "MAC_OS");
+
+      // Step 1: create review submission
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/reviewSubmissions",
+        expect.objectContaining({ method: "POST" }),
+      );
+      const step1Body = JSON.parse(mockAscFetch.mock.calls[0][1].body);
+      expect(step1Body.data.type).toBe("reviewSubmissions");
+      expect(step1Body.data.attributes.platform).toBe("MAC_OS");
+      expect(step1Body.data.relationships.app.data.id).toBe("app-1");
+
+      // Step 2: add version as item
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/reviewSubmissionItems",
+        expect.objectContaining({ method: "POST" }),
+      );
+      const step2Body = JSON.parse(mockAscFetch.mock.calls[1][1].body);
+      expect(step2Body.data.type).toBe("reviewSubmissionItems");
+      expect(step2Body.data.relationships.reviewSubmission.data.id).toBe("sub-1");
+      expect(step2Body.data.relationships.appStoreVersion.data.id).toBe("ver-1");
+
+      // Step 3: confirm submission
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/reviewSubmissions/sub-1",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+      const step3Body = JSON.parse(mockAscFetch.mock.calls[2][1].body);
+      expect(step3Body.data.attributes.submitted).toBe(true);
     });
   });
 

@@ -5,11 +5,28 @@ import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { CheckCircle, Circle } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api-fetch";
+import { apiFetch, ApiError } from "@/lib/api-fetch";
 import { useVersions } from "@/lib/versions-context";
 import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
+import { useFormDirty } from "@/lib/form-dirty-context";
+import { useErrorReport } from "@/lib/error-report-context";
+import type { AscErrorReportData } from "@/components/error-report-dialog";
 import { resolveVersion, type AscVersion } from "@/lib/asc/version-types";
+
+/** Brief pause to let ASC propagate state changes before re-fetching. */
+const ASC_PROPAGATION_DELAY = 3000;
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 const FOOTER_PAGES = new Set(["store-listing"]);
 
@@ -54,12 +71,23 @@ function SubmissionChecklist({ version }: { version: AscVersion }) {
   );
 }
 
+function useChecklistReady(version: AscVersion): boolean {
+  const { flags } = useSubmissionChecklist();
+  const hasBuild = version.build !== null;
+  const rd = version.reviewDetail?.attributes;
+  const hasContact = !!(rd?.contactEmail && rd?.contactFirstName && rd?.contactLastName && rd?.contactPhone);
+  return hasBuild && flags.hasDescription && flags.hasWhatsNew && flags.hasKeywords && hasContact;
+}
+
 export function VersionActionFooter() {
   const { appId } = useParams<{ appId: string }>();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { versions, refresh } = useVersions();
+  const { isDirty, onSave, isSaving, hasValidationErrors } = useFormDirty();
+  const { showAscError } = useErrorReport();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const pageSegment = getPageSegment(pathname);
 
@@ -72,84 +100,216 @@ export function VersionActionFooter() {
 
   const state = version.attributes.appVersionState;
 
-  if (SUBMIT_STATES.has(state)) {
-    return (
-      <Footer left={<SubmissionChecklist version={version} />}>
-        <Button disabled onClick={() => toast.info("Attach a build first")}>
-          Submit for review
-        </Button>
-      </Footer>
-    );
-  }
+  const isSubmit = SUBMIT_STATES.has(state);
+  const isResubmit = RESUBMIT_STATES.has(state);
 
-  if (RESUBMIT_STATES.has(state)) {
+  if (isSubmit || isResubmit) {
     return (
-      <Footer left={<SubmissionChecklist version={version} />}>
-        <Button disabled onClick={() => toast.info("Attach a build first")}>
-          Resubmit for review
-        </Button>
-      </Footer>
+      <SubmitFooter
+        appId={appId}
+        version={version}
+        isResubmit={isResubmit}
+        isDirty={isDirty}
+        isSaving={isSaving}
+        hasValidationErrors={hasValidationErrors}
+        loading={loading}
+        confirmOpen={confirmOpen}
+        onSave={onSave}
+        showAscError={showAscError}
+        refresh={refresh}
+        setLoading={setLoading}
+        setConfirmOpen={setConfirmOpen}
+      />
     );
   }
 
   if (CANCEL_STATES.has(state)) {
     return (
-      <Footer>
-        <Button
-          variant="destructive"
-          disabled={loading}
-          onClick={async () => {
-            setLoading(true);
-            try {
-              await apiFetch(
-                `/api/apps/${appId}/versions/${version.id}/cancel-submission`,
-                { method: "POST" },
-              );
-              toast.success("Submission cancelled");
-              await refresh();
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Failed to cancel submission");
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
-          {loading && <Spinner />}
-          Cancel submission
-        </Button>
-      </Footer>
+      <>
+        {loading && <LoadingOverlay label="Cancelling submission…" />}
+        <Footer>
+          <Button
+            variant="destructive"
+            disabled={loading}
+            onClick={() => setConfirmOpen(true)}
+          >
+            Cancel submission
+          </Button>
+        </Footer>
+        <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel submission?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Version {version.attributes.versionString} will be removed from App Review.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep in review</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={async () => {
+                  setConfirmOpen(false);
+                  setLoading(true);
+                  try {
+                    await apiFetch(
+                      `/api/apps/${appId}/versions/${version.id}/cancel-submission`,
+                      { method: "POST" },
+                    );
+                    toast.success("Submission cancelled");
+                    await delay(ASC_PROPAGATION_DELAY);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Failed to cancel submission");
+                  }
+                  setLoading(false);
+                  await refresh();
+                }}
+              >
+                Cancel submission
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     );
   }
 
   if (state === "PENDING_DEVELOPER_RELEASE") {
     return (
-      <Footer>
-        <Button
-          disabled={loading}
-          onClick={async () => {
-            setLoading(true);
-            try {
-              await apiFetch(
-                `/api/apps/${appId}/versions/${version.id}/release-now`,
-                { method: "POST" },
-              );
-              toast.success("Version released");
-              await refresh();
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Failed to release version");
-            } finally {
+      <>
+        {loading && <LoadingOverlay label="Releasing version…" />}
+        <Footer>
+          <Button
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              try {
+                await apiFetch(
+                  `/api/apps/${appId}/versions/${version.id}/release-now`,
+                  { method: "POST" },
+                );
+                toast.success("Version released");
+                await delay(ASC_PROPAGATION_DELAY);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Failed to release version");
+              }
               setLoading(false);
-            }
-          }}
-        >
-          {loading && <Spinner />}
-          Release now
-        </Button>
-      </Footer>
+              await refresh();
+            }}
+          >
+            Release now
+          </Button>
+        </Footer>
+      </>
     );
   }
 
   return null;
+}
+
+function SubmitFooter({
+  appId,
+  version,
+  isResubmit,
+  isDirty,
+  isSaving,
+  hasValidationErrors,
+  loading,
+  confirmOpen,
+  onSave,
+  showAscError,
+  refresh,
+  setLoading,
+  setConfirmOpen,
+}: {
+  appId: string;
+  version: AscVersion;
+  isResubmit: boolean;
+  isDirty: boolean;
+  isSaving: boolean;
+  hasValidationErrors: boolean;
+  loading: boolean;
+  confirmOpen: boolean;
+  onSave: () => void | Promise<void>;
+  showAscError: (data: AscErrorReportData) => void;
+  refresh: () => Promise<void>;
+  setLoading: (v: boolean) => void;
+  setConfirmOpen: (v: boolean) => void;
+}) {
+  const checklistReady = useChecklistReady(version);
+  const canSubmit = checklistReady && !hasValidationErrors && !isSaving;
+
+  const label = isResubmit ? "Resubmit for review" : "Submit for review";
+  const confirmTitle = isResubmit ? "Resubmit for review?" : "Submit for review?";
+
+  async function handleSubmit() {
+    setConfirmOpen(false);
+    setLoading(true);
+    try {
+      if (isDirty) await onSave();
+      await apiFetch(
+        `/api/apps/${appId}/versions/${version.id}/submit-for-review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform: version.attributes.platform }),
+        },
+      );
+      toast.success("Submitted for review");
+      await delay(ASC_PROPAGATION_DELAY);
+    } catch (err) {
+      if (err instanceof ApiError && err.ascErrors?.length) {
+        showAscError({
+          message: err.message,
+          ascErrors: err.ascErrors,
+          ascMethod: err.ascMethod,
+          ascPath: err.ascPath,
+        });
+      } else {
+        toast.error(err instanceof Error ? err.message : "Failed to submit for review");
+      }
+    }
+    setLoading(false);
+    await refresh();
+  }
+
+  return (
+    <>
+      {loading && <LoadingOverlay label="Submitting for review…" />}
+      <Footer left={<SubmissionChecklist version={version} />}>
+        <Button disabled={!canSubmit || loading} onClick={() => setConfirmOpen(true)}>
+          {label}
+        </Button>
+      </Footer>
+      <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Version {version.attributes.versionString} will be submitted to App Review.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSubmit}>
+              Submit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function LoadingOverlay({ label }: { label: string }) {
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/60">
+      <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+        <Spinner className="size-4" />
+        {label}
+      </div>
+    </div>
+  );
 }
 
 function Footer({ left, children }: { left?: React.ReactNode; children: React.ReactNode }) {

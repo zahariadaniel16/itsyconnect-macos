@@ -43,9 +43,9 @@ function getNavGroups(appId: string): NavGroup[] {
       label: "Release",
       items: [
         { title: "Overview", href: base, icon: Gauge },
-        { title: "App details", href: `${base}/details`, icon: Info },
         { title: "Store listing", href: `${base}/store-listing`, icon: Storefront },
         { title: "Screenshots", href: `${base}/screenshots`, icon: Images },
+        { title: "App details", href: `${base}/details`, icon: Info },
         { title: "App review", href: `${base}/review`, icon: Stamp },
       ],
     },

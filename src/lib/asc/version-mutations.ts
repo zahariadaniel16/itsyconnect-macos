@@ -86,6 +86,63 @@ export async function cancelSubmission(versionId: string): Promise<void> {
   });
 }
 
+export async function submitForReview(
+  appId: string,
+  versionId: string,
+  platform: string,
+): Promise<void> {
+  // Step 1: create a review submission for the app
+  const submission = await ascFetch<{ data: { id: string } }>(
+    "/v1/reviewSubmissions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        data: {
+          type: "reviewSubmissions",
+          attributes: { platform },
+          relationships: {
+            app: {
+              data: { type: "apps", id: appId },
+            },
+          },
+        },
+      }),
+    },
+  );
+
+  const submissionId = submission.data.id;
+
+  // Step 2: add the version as a review submission item
+  await ascFetch("/v1/reviewSubmissionItems", {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "reviewSubmissionItems",
+        relationships: {
+          reviewSubmission: {
+            data: { type: "reviewSubmissions", id: submissionId },
+          },
+          appStoreVersion: {
+            data: { type: "appStoreVersions", id: versionId },
+          },
+        },
+      },
+    }),
+  });
+
+  // Step 3: confirm the submission
+  await ascFetch(`/v1/reviewSubmissions/${submissionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      data: {
+        type: "reviewSubmissions",
+        id: submissionId,
+        attributes: { submitted: true },
+      },
+    }),
+  });
+}
+
 export async function releaseVersion(versionId: string): Promise<void> {
   await ascFetch("/v1/appStoreVersionReleaseRequests", {
     method: "POST",

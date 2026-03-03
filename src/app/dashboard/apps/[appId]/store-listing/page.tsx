@@ -11,7 +11,7 @@ import type { SyncError } from "@/lib/api-helpers";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
-import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
+import { resolveVersion, EDITABLE_STATES, type AscVersion } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import type { AscLocalization } from "@/lib/asc/localizations";
 import {
@@ -33,6 +33,22 @@ import { BuildSection } from "./_components/build-section";
 import { ReleaseSettings } from "./_components/release-settings";
 import { EmptyState } from "@/components/empty-state";
 
+
+function deriveReleaseSettings(version: AscVersion | undefined) {
+  if (!version) return { releaseType: "automatically" as const, scheduledDate: undefined as Date | undefined, phasedRelease: false };
+  const { releaseType: rt, earliestReleaseDate } = version.attributes;
+  if (rt === "SCHEDULED" || (rt === "AFTER_APPROVAL" && earliestReleaseDate)) {
+    return {
+      releaseType: "after-date" as const,
+      scheduledDate: earliestReleaseDate ? new Date(earliestReleaseDate) : undefined,
+      phasedRelease: version.phasedRelease != null,
+    };
+  }
+  if (rt === "AFTER_APPROVAL" || rt == null) {
+    return { releaseType: "automatically" as const, scheduledDate: undefined, phasedRelease: version.phasedRelease != null };
+  }
+  return { releaseType: "manually" as const, scheduledDate: undefined, phasedRelease: version.phasedRelease != null };
+}
 
 function buildLocaleData(
   localizations: AscLocalization[],
@@ -147,33 +163,22 @@ export default function StoreListingPage() {
     fetchBuilds();
   }, [fetchBuilds]);
 
-  const [releaseType, setReleaseType] = useState("manually");
-  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
-  const [phasedRelease, setPhasedRelease] = useState(false);
+  const derived = deriveReleaseSettings(selectedVersion);
+  const [releaseType, setReleaseType] = useState<string>(derived.releaseType);
+  const [scheduledDate, setScheduledDate] = useState(derived.scheduledDate);
+  const [phasedRelease, setPhasedRelease] = useState(derived.phasedRelease);
 
-  // Reset release settings when version changes (during render)
-  const [prevVersionId, setPrevVersionId] = useState(versionId);
-  if (versionId !== prevVersionId) {
-    setPrevVersionId(versionId);
-    if (selectedVersion) {
-      const { releaseType: rt, earliestReleaseDate } = selectedVersion.attributes;
-      if (rt === "SCHEDULED" || (rt === "AFTER_APPROVAL" && earliestReleaseDate)) {
-        setReleaseType("after-date");
-        if (earliestReleaseDate) setScheduledDate(new Date(earliestReleaseDate));
-        else setScheduledDate(undefined);
-      } else if (rt === "AFTER_APPROVAL") {
-        setReleaseType("automatically");
-        setScheduledDate(undefined);
-      } else {
-        setReleaseType("manually");
-        setScheduledDate(undefined);
-      }
-      setPhasedRelease(selectedVersion.phasedRelease != null);
-
-      const buildId = selectedVersion.build?.id ?? null;
-      setSelectedBuildId(buildId);
-      originalBuildIdRef.current = buildId;
-    }
+  // Re-sync from server data when version switches or data refreshes
+  const snapshotKey = `${versionId}:${selectedVersion?.attributes.releaseType}:${selectedVersion?.attributes.earliestReleaseDate}:${selectedVersion?.phasedRelease?.id ?? ""}:${selectedVersion?.build?.id ?? ""}`;
+  const [prevSnapshotKey, setPrevSnapshotKey] = useState(snapshotKey);
+  if (snapshotKey !== prevSnapshotKey) {
+    setPrevSnapshotKey(snapshotKey);
+    setReleaseType(derived.releaseType);
+    setScheduledDate(derived.scheduledDate);
+    setPhasedRelease(derived.phasedRelease);
+    const buildId = selectedVersion?.build?.id ?? null;
+    setSelectedBuildId(buildId);
+    originalBuildIdRef.current = buildId;
   }
 
   // Track original locale → localization ID mapping for diffing saves
@@ -418,21 +423,10 @@ export default function StoreListingPage() {
   useEffect(() => {
     registerDiscard(() => {
       setLocaleData(buildLocaleData(localizations));
-      if (selectedVersion) {
-        const { releaseType: rt, earliestReleaseDate } = selectedVersion.attributes;
-        if (rt === "SCHEDULED" || (rt === "AFTER_APPROVAL" && earliestReleaseDate)) {
-          setReleaseType("after-date");
-          if (earliestReleaseDate) setScheduledDate(new Date(earliestReleaseDate));
-          else setScheduledDate(undefined);
-        } else if (rt === "AFTER_APPROVAL") {
-          setReleaseType("automatically");
-          setScheduledDate(undefined);
-        } else {
-          setReleaseType("manually");
-          setScheduledDate(undefined);
-        }
-        setPhasedRelease(selectedVersion.phasedRelease != null);
-      }
+      const reset = deriveReleaseSettings(selectedVersion);
+      setReleaseType(reset.releaseType);
+      setScheduledDate(reset.scheduledDate);
+      setPhasedRelease(reset.phasedRelease);
       setSelectedBuildId(originalBuildIdRef.current);
     });
   }, [localizations, selectedVersion, registerDiscard]);
@@ -545,12 +539,8 @@ export default function StoreListingPage() {
   return (
     <div className="space-y-6">
         {/* Read-only banner */}
-        {readOnly && (
-          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-            <Lock size={16} className="shrink-0" />
-            This version is live – only promotional text can be updated
-            without a new review.
-          </div>
+        {readOnly && selectedVersion && (
+          <ReadOnlyBanner state={selectedVersion.attributes.appVersionState} />
         )}
 
         {/* Version string */}
@@ -626,6 +616,26 @@ export default function StoreListingPage() {
           onPhasedReleaseChange={(v) => { setPhasedRelease(v); setDirty(true); }}
           readOnly={readOnly}
         />
+    </div>
+  );
+}
+
+const REVIEW_STATES = new Set(["WAITING_FOR_REVIEW", "IN_REVIEW"]);
+
+function ReadOnlyBanner({ state }: { state: string }) {
+  let message: string;
+  if (REVIEW_STATES.has(state)) {
+    message = "This version is in review – changes are locked until the review completes.";
+  } else if (state === "PENDING_DEVELOPER_RELEASE") {
+    message = "This version is approved and pending release – metadata is locked.";
+  } else {
+    message = "This version is live – only promotional text can be updated without a new review.";
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+      <Lock size={16} className="shrink-0" />
+      {message}
     </div>
   );
 }
