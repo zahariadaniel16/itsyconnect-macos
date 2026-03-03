@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Lock } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
@@ -124,14 +124,28 @@ export default function StoreListingPage() {
   const [selectedBuildId, setSelectedBuildId] = useState<string | null>(null);
   const originalBuildIdRef = useRef<string | null>(null);
 
-  // Fetch all app builds for the picker
+  const platform = selectedVersion?.attributes.platform;
+
+  // Fetch builds for the picker, filtered by platform
+  const fetchBuilds = useCallback(
+    (refresh = false) => {
+      if (!appId) return;
+      const params = new URLSearchParams();
+      if (refresh) params.set("refresh", "1");
+      if (platform) params.set("platform", platform);
+      const qs = params.toString();
+      fetch(`/api/apps/${appId}/testflight/builds${qs ? `?${qs}` : ""}`)
+        .then((res) => (res.ok ? res.json() : { builds: [] }))
+        .then((data) => setAllBuilds(data.builds ?? []))
+        .catch(() => setAllBuilds([]));
+    },
+    [appId, platform],
+  );
+
+  // Initial fetch when app/platform changes
   useEffect(() => {
-    if (!appId) return;
-    fetch(`/api/apps/${appId}/testflight/builds`)
-      .then((res) => (res.ok ? res.json() : { builds: [] }))
-      .then((data) => setAllBuilds(data.builds ?? []))
-      .catch(() => setAllBuilds([]));
-  }, [appId]);
+    fetchBuilds();
+  }, [fetchBuilds]);
 
   const [releaseType, setReleaseType] = useState("manually");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
@@ -575,6 +589,7 @@ export default function StoreListingPage() {
           versionBuild={selectedVersion?.build ?? null}
           versionString={selectedVersion?.attributes.versionString}
           onBuildChange={(id) => { setSelectedBuildId(id); setDirty(true); }}
+          onRefresh={() => fetchBuilds(true)}
           readOnly={readOnly}
         />
 

@@ -25,6 +25,7 @@ export function BuildSection({
   versionBuild,
   versionString,
   onBuildChange,
+  onRefresh,
   readOnly,
 }: {
   allBuilds: TFBuild[];
@@ -32,6 +33,7 @@ export function BuildSection({
   versionBuild: AscBuild | null;
   versionString: string | undefined;
   onBuildChange: (buildId: string) => void;
+  onRefresh: () => void;
   readOnly: boolean;
 }) {
   const selectedBuild = selectedBuildId
@@ -78,7 +80,7 @@ export function BuildSection({
   }
 
   const picker = (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => { if (open) onRefresh(); }}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm">
           {selectedBuild ? "Change" : "Select build"}
