@@ -401,16 +401,20 @@ export default function AppDetailsPage() {
 
   function handleDeleteLocale(code: string) {
     const deletedData = localeData[code];
+    const needsLocaleSwitch = selectedLocale === code;
     setLocaleData((prev) => {
       const next = { ...prev };
       delete next[code];
-      const sorted = sortLocales(Object.keys(next), primaryLocale);
-      setLocales(sorted);
-      if (selectedLocale === code) {
-        changeLocale(sorted[0] ?? "");
-      }
+      setLocales(sortLocales(Object.keys(next), primaryLocale));
       return next;
     });
+    if (needsLocaleSwitch) {
+      const remaining = sortLocales(
+        Object.keys(localeData).filter((c) => c !== code),
+        primaryLocale,
+      );
+      changeLocale(remaining[0] ?? "");
+    }
     setDirty(true);
     toast(`Removed ${localeName(code)}`, {
       action: {

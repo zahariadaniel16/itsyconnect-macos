@@ -363,6 +363,68 @@ Returns: `{ data: [{ attributes: { diagnosticMetaData, callStackTree, insights }
 
 **Note:** Diagnostic data is available for all builds including expired ones. Signatures are cached for 15 minutes. Logs are fetched on-demand (no caching).
 
+### Performance metrics (perfPowerMetrics)
+
+```
+GET /v1/apps/{appId}/perfPowerMetrics
+  filter[deviceType] = all_iphones | all_ipads | all_macs (optional)
+  filter[metricType] = LAUNCH | HANG | MEMORY | DISK | BATTERY | TERMINATION | ANIMATION (optional)
+  filter[platform] = IOS (optional – API uses uppercase enum values, not "iOS"/"macOS")
+```
+
+Returns a non-JSON:API custom format with `insights` and `productData`:
+
+```json
+{
+  "insights": {
+    "regressions": [{ "metric", "metricCategory", "latestVersion", "summaryString" }]
+  },
+  "productData": [{
+    "platform": "macOS",
+    "metricCategories": [{
+      "identifier": "LAUNCH",
+      "metrics": [{
+        "identifier": "launchTime",
+        "unit": { "displayName": "ms" },
+        "datasets": [{
+          "filterCriteria": { "device": "all_macs", "percentile": "percentile.fifty" },
+          "points": [{ "version": "1.0", "value": 768.7 }]
+        }]
+      }]
+    }]
+  }]
+}
+```
+
+Metric categories:
+| Category | What it measures |
+|---|---|
+| `LAUNCH` | App launch time in ms |
+| `HANG` | Seconds/hour main thread unresponsive >250ms |
+| `MEMORY` | Memory usage in MB |
+| `DISK` | MB/day written to storage |
+| `BATTERY` | Battery drain over 24h |
+| `TERMINATION` | Non-user-initiated terminations per day |
+| `ANIMATION` | Scroll pause duration |
+
+Each metric has p50 and p90 percentile datasets. `insights.regressions` contains Apple's automated regression detection with human-readable summaries.
+
+**Caching:** 6-hour TTL – data only changes when a new app version is released and Apple aggregates enough data.
+
+### App Crashes Expanded (PERFORMANCE category)
+
+```
+Fetched via analytics report system:
+  category = PERFORMANCE
+  reportName = "App Crashes Expanded"
+  granularity = DAILY
+  limit = 365 days
+```
+
+Provides daily crash data (vs monthly for the standard `App Crashes` report in APP_USAGE). TSV columns include `Date`, `App Apple Identifier`, `App Version`, `Platform Version`, `Device`, `Crashes`, `Unique Devices`.
+
+Aggregated into `dailyCrashes` time series for crash trend charts.
+
 ## Known API quirks
 
 1. **`fields[type]` strips relationships** – the ASC API follows JSON:API sparse fieldsets: when you specify `fields[someType]=attr1,attr2`, the response omits **all** relationship pointers not listed. To keep relationship data needed by `include`, you must add the relationship names to `fields`. For example: `fields[appStoreVersions]=versionString,...,build,appStoreReviewDetail` – without `build,appStoreReviewDetail` in the list, the `relationships` key is missing from each version object and `resolveIncluded()` cannot match included items to their parents.

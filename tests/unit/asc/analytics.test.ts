@@ -20,7 +20,7 @@ vi.mock("@/lib/cache", () => ({
 // Replace global fetch
 vi.stubGlobal("fetch", mockFetch);
 
-import { buildAnalyticsData, parseTsv } from "@/lib/asc/analytics";
+import { buildAnalyticsData, parseTsv, fetchPerfPowerMetrics } from "@/lib/asc/analytics";
 
 // ---------- Helpers ----------
 
@@ -132,6 +132,9 @@ describe("buildAnalyticsData", () => {
     expect(result.discoverySources).toEqual([]);
     expect(result.crashesByVersion).toEqual([]);
     expect(result.crashesByDevice).toEqual([]);
+    expect(result.dailyCrashes).toEqual([]);
+    expect(result.perfMetrics).toEqual([]);
+    expect(result.perfRegressions).toEqual([]);
     // Should cache the empty result
     expect(mockCacheSet).toHaveBeenCalledWith(
       "analytics:app-empty",
@@ -238,6 +241,62 @@ describe("buildAnalyticsData – full pipeline", () => {
     ],
   );
 
+  // Expanded crashes have Date column (daily granularity)
+  const expandedCrashTsv = tsvString(
+    ["Date", "App Apple Identifier", "App Version", "Platform Version", "Device", "Crashes", "Unique Devices"],
+    [
+      ["2026-02-01", "app-full", "1.0.0", "macOS 26.2", "MacBookPro18,1", "4", "2"],
+      ["2026-02-01", "app-full", "2.0.0", "macOS 26.3", "MacBookAir10,1", "2", "1"],
+      ["2026-02-02", "app-full", "1.0.0", "macOS 26.2", "MacBookPro18,1", "3", "1"],
+    ],
+  );
+
+  // Mock perfPowerMetrics response
+  const perfPowerMetricsResponse = {
+    insights: {
+      regressions: [
+        {
+          metric: "launchTime",
+          metricCategory: "LAUNCH",
+          latestVersion: "2.0.0",
+          summaryString: "Launch time increased 10% on Mac (All)",
+        },
+      ],
+    },
+    productData: [
+      {
+        platform: "macOS",
+        metricCategories: [
+          {
+            identifier: "LAUNCH",
+            metrics: [
+              {
+                identifier: "launchTime",
+                unit: { displayName: "ms" },
+                datasets: [
+                  {
+                    filterCriteria: { device: "all_macs", percentile: "percentile.fifty" },
+                    points: [
+                      { version: "1.0.0", value: 768.7 },
+                      { version: "2.0.0", value: 997.8 },
+                    ],
+                  },
+                  {
+                    filterCriteria: { device: "all_macs", percentile: "percentile.ninety" },
+                    points: [
+                      { version: "1.0.0", value: 1532.1 },
+                      { version: "2.0.0", value: 2014.3 },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
   // Map of report names to their TSV data and segment URLs
   const reportData: Record<string, string> = {
     "App Downloads Standard": downloadTsv,
@@ -248,6 +307,7 @@ describe("buildAnalyticsData – full pipeline", () => {
     "App Store Installation and Deletion Standard": installDeleteTsv,
     "App Opt In": optInTsv,
     "App Crashes": crashTsv,
+    "App Crashes Expanded": expandedCrashTsv,
   };
 
   function setupFullPipeline() {
@@ -261,6 +321,11 @@ describe("buildAnalyticsData – full pipeline", () => {
     });
 
     mockAscFetch.mockImplementation(async (url: string) => {
+      // perfPowerMetrics – separate API
+      if (url.includes("/perfPowerMetrics")) {
+        return perfPowerMetricsResponse;
+      }
+
       // Report requests
       if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
         return reportRequestsResponse(["req-1"]);
@@ -278,7 +343,10 @@ describe("buildAnalyticsData – full pipeline", () => {
               return name.includes("Discovery") || name.includes("Web Preview");
             }
             if (category === "APP_USAGE") {
-              return name.includes("Sessions") || name.includes("Installation") || name.includes("Opt In") || name.includes("Crashes");
+              return name.includes("Sessions") || name.includes("Installation") || name.includes("Opt In") || name === "App Crashes";
+            }
+            if (category === "PERFORMANCE") {
+              return name === "App Crashes Expanded";
             }
             return false;
           })
@@ -292,12 +360,12 @@ describe("buildAnalyticsData – full pipeline", () => {
         const reportName = Object.entries(reportNameToId).find(
           ([, id]) => id === reportId,
         )?.[0];
-        const isCrash = reportName === "App Crashes";
+        const isMonthlyCrash = reportName === "App Crashes";
         return instancesResponse([
           {
             id: `inst-${reportId}`,
-            processingDate: isCrash ? "2026-02-01" : "2026-02-02",
-            granularity: isCrash ? "MONTHLY" : "DAILY",
+            processingDate: isMonthlyCrash ? "2026-02-01" : "2026-02-02",
+            granularity: isMonthlyCrash ? "MONTHLY" : "DAILY",
           },
         ]);
       }
@@ -451,6 +519,55 @@ describe("buildAnalyticsData – full pipeline", () => {
       { device: "MacBookPro18,1", crashes: 10, uniqueDevices: 3 },
       { device: "MacBookAir10,1", crashes: 5, uniqueDevices: 2 },
     ]);
+
+    // Daily crashes (from App Crashes Expanded – daily granularity)
+    expect(result.dailyCrashes).toHaveLength(2);
+    expect(result.dailyCrashes[0]).toEqual({
+      date: "2026-02-01",
+      crashes: 6, // 4 + 2
+      uniqueDevices: 3, // 2 + 1
+    });
+    expect(result.dailyCrashes[1]).toEqual({
+      date: "2026-02-02",
+      crashes: 3,
+      uniqueDevices: 1,
+    });
+
+    // Performance metrics (from perfPowerMetrics API)
+    expect(result.perfMetrics).toHaveLength(1);
+    expect(result.perfMetrics[0]).toEqual({
+      category: "LAUNCH",
+      metric: "launchTime",
+      unit: "ms",
+      platform: "macOS",
+      datasets: [
+        {
+          percentile: "percentile.fifty",
+          device: "all_macs",
+          points: [
+            { version: "1.0.0", value: 768.7 },
+            { version: "2.0.0", value: 997.8 },
+          ],
+        },
+        {
+          percentile: "percentile.ninety",
+          device: "all_macs",
+          points: [
+            { version: "1.0.0", value: 1532.1 },
+            { version: "2.0.0", value: 2014.3 },
+          ],
+        },
+      ],
+    });
+
+    // Performance regressions
+    expect(result.perfRegressions).toHaveLength(1);
+    expect(result.perfRegressions[0]).toEqual({
+      metric: "launchTime",
+      metricCategory: "LAUNCH",
+      latestVersion: "2.0.0",
+      summary: "Launch time increased 10% on Mac (All)",
+    });
 
     // Should cache final result
     expect(mockCacheSet).toHaveBeenCalledWith(
@@ -2365,6 +2482,15 @@ describe("aggregation with empty/missing field values (|| fallback branches)", (
     ],
   );
 
+  // Expanded crash TSV with empty fields
+  const emptyExpandedCrashTsv = tsvString(
+    ["Date", "App Apple Identifier", "App Version", "Device", "Crashes", "Unique Devices"],
+    [
+      ["2026-02-01", "app-empty-fields", "", "", "", ""],
+      ["2026-02-01", "app-empty-fields", "1.0.0", "MacBookPro18,1", "3", "1"],
+    ],
+  );
+
   const emptyReportData: Record<string, string> = {
     "App Downloads Standard": emptyDownloadTsv,
     "App Store Purchases Standard": emptyPurchaseTsv,
@@ -2374,6 +2500,7 @@ describe("aggregation with empty/missing field values (|| fallback branches)", (
     "App Store Installation and Deletion Standard": emptyInstallDeleteTsv,
     "App Opt In": emptyOptInTsv,
     "App Crashes": emptyCrashTsv,
+    "App Crashes Expanded": emptyExpandedCrashTsv,
   };
 
   function setupEmptyFieldsPipeline() {
@@ -2386,6 +2513,9 @@ describe("aggregation with empty/missing field values (|| fallback branches)", (
     });
 
     mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
       if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
         return reportRequestsResponse(["req-ef"]);
       }
@@ -2400,7 +2530,10 @@ describe("aggregation with empty/missing field values (|| fallback branches)", (
               return name.includes("Discovery") || name.includes("Web Preview");
             }
             if (category === "APP_USAGE") {
-              return name.includes("Sessions") || name.includes("Installation") || name.includes("Opt In") || name.includes("Crashes");
+              return name.includes("Sessions") || name.includes("Installation") || name.includes("Opt In") || name === "App Crashes";
+            }
+            if (category === "PERFORMANCE") {
+              return name === "App Crashes Expanded";
             }
             return false;
           })
@@ -2412,12 +2545,12 @@ describe("aggregation with empty/missing field values (|| fallback branches)", (
         const reportName = Object.entries(reportNameToId).find(
           ([, id]) => id === reportId,
         )?.[0];
-        const isCrash = reportName === "App Crashes";
+        const isMonthlyCrash = reportName === "App Crashes";
         return instancesResponse([
           {
             id: `inst-${reportId}`,
-            processingDate: isCrash ? "2026-02-01" : "2026-02-01",
-            granularity: isCrash ? "MONTHLY" : "DAILY",
+            processingDate: isMonthlyCrash ? "2026-02-01" : "2026-02-01",
+            granularity: isMonthlyCrash ? "MONTHLY" : "DAILY",
           },
         ]);
       }
@@ -2838,5 +2971,304 @@ describe("aggregation with empty/missing field values (|| fallback branches)", (
     expect(jpTerritory!.downloads).toBe(20);
     // Revenue should be 0 due to empty Proceeds
     expect(jpTerritory!.revenue).toBe(0);
+  });
+});
+
+describe("fetchPerfPowerMetrics", () => {
+  it("returns cached result immediately", async () => {
+    const cachedPerf = { metrics: [{ category: "LAUNCH" }], regressions: [] };
+    mockCacheGet.mockImplementation((key: string) => {
+      if (key === "perf-metrics:app-perf-cached") return cachedPerf;
+      return null;
+    });
+
+    const result = await fetchPerfPowerMetrics("app-perf-cached");
+    expect(result).toBe(cachedPerf);
+    expect(mockAscFetch).not.toHaveBeenCalled();
+  });
+
+  it("fetches and transforms perfPowerMetrics response", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockResolvedValueOnce({
+      insights: {
+        regressions: [
+          {
+            metric: "hangTime",
+            metricCategory: "HANG",
+            latestVersion: "3.0",
+            summaryString: "Hang rate increased 5%",
+          },
+        ],
+      },
+      productData: [
+        {
+          platform: "macOS",
+          metricCategories: [
+            {
+              identifier: "LAUNCH",
+              metrics: [
+                {
+                  identifier: "launchTime",
+                  unit: { displayName: "ms" },
+                  datasets: [
+                    {
+                      filterCriteria: { device: "all_macs", percentile: "percentile.fifty" },
+                      points: [{ version: "1.0", value: 500 }],
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              identifier: "MEMORY",
+              metrics: [
+                {
+                  identifier: "memoryUsage",
+                  unit: { displayName: "MB" },
+                  datasets: [
+                    {
+                      filterCriteria: { device: "all_macs", percentile: "percentile.fifty" },
+                      points: [{ version: "1.0", value: 128 }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await fetchPerfPowerMetrics("app-perf-fetch");
+
+    expect(result.metrics).toHaveLength(2);
+    expect(result.metrics[0]).toEqual({
+      category: "LAUNCH",
+      metric: "launchTime",
+      unit: "ms",
+      platform: "macOS",
+      datasets: [{
+        percentile: "percentile.fifty",
+        device: "all_macs",
+        points: [{ version: "1.0", value: 500 }],
+      }],
+    });
+    expect(result.metrics[1]).toEqual({
+      category: "MEMORY",
+      metric: "memoryUsage",
+      unit: "MB",
+      platform: "macOS",
+      datasets: [{
+        percentile: "percentile.fifty",
+        device: "all_macs",
+        points: [{ version: "1.0", value: 128 }],
+      }],
+    });
+
+    expect(result.regressions).toHaveLength(1);
+    expect(result.regressions[0]).toEqual({
+      metric: "hangTime",
+      metricCategory: "HANG",
+      latestVersion: "3.0",
+      summary: "Hang rate increased 5%",
+    });
+
+    // Should cache with PERF_METRICS_TTL (6 hours)
+    expect(mockCacheSet).toHaveBeenCalledWith(
+      "perf-metrics:app-perf-fetch",
+      result,
+      6 * 60 * 60 * 1000,
+    );
+  });
+
+  it("returns empty on API failure", async () => {
+    mockCacheGet.mockReturnValue(null);
+    mockAscFetch.mockRejectedValueOnce(new Error("API error"));
+
+    const result = await fetchPerfPowerMetrics("app-perf-fail");
+    expect(result).toEqual({ metrics: [], regressions: [] });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      "[analytics] perfPowerMetrics fetch failed:",
+      expect.any(Error),
+    );
+  });
+
+  it("handles empty/missing fields in response", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockResolvedValueOnce({
+      // No insights, no productData
+    });
+
+    const result = await fetchPerfPowerMetrics("app-perf-empty");
+    expect(result.metrics).toEqual([]);
+    expect(result.regressions).toEqual([]);
+  });
+
+  it("skips datasets with empty points arrays", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockResolvedValueOnce({
+      productData: [
+        {
+          platform: "iOS",
+          metricCategories: [
+            {
+              identifier: "DISK",
+              metrics: [
+                {
+                  identifier: "diskWrites",
+                  unit: { displayName: "MB/day" },
+                  datasets: [
+                    { filterCriteria: { device: "all_iphones", percentile: "percentile.fifty" }, points: [] },
+                    { filterCriteria: { device: "all_iphones", percentile: "percentile.ninety" }, points: [{ version: "1.0", value: 5.2 }] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await fetchPerfPowerMetrics("app-perf-empty-pts");
+    expect(result.metrics).toHaveLength(1);
+    // Only the dataset with points should be included
+    expect(result.metrics[0].datasets).toHaveLength(1);
+    expect(result.metrics[0].datasets[0].percentile).toBe("percentile.ninety");
+  });
+
+  it("skips metrics with all empty datasets", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockResolvedValueOnce({
+      productData: [
+        {
+          platform: "macOS",
+          metricCategories: [
+            {
+              identifier: "BATTERY",
+              metrics: [
+                {
+                  identifier: "batteryUsage",
+                  datasets: [
+                    { filterCriteria: { device: "all_macs" }, points: [] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await fetchPerfPowerMetrics("app-perf-no-datasets");
+    // No datasets with points → metric is skipped entirely
+    expect(result.metrics).toEqual([]);
+  });
+
+  it("handles missing filterCriteria and unit", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockResolvedValueOnce({
+      productData: [
+        {
+          platform: "macOS",
+          metricCategories: [
+            {
+              identifier: "TERMINATION",
+              metrics: [
+                {
+                  identifier: "terminationCount",
+                  // No unit
+                  datasets: [
+                    {
+                      // No filterCriteria
+                      points: [{ version: "1.0", value: 2.5 }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await fetchPerfPowerMetrics("app-perf-no-filter");
+    expect(result.metrics).toHaveLength(1);
+    expect(result.metrics[0].unit).toBe("");
+    expect(result.metrics[0].datasets[0].percentile).toBe("unknown");
+    expect(result.metrics[0].datasets[0].device).toBe("unknown");
+  });
+});
+
+describe("dailyCrashes aggregation", () => {
+  it("aggregates daily crashes from expanded crash report", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    const tsv = tsvString(
+      ["Date", "App Version", "Device", "Crashes", "Unique Devices"],
+      [
+        ["2026-02-01", "1.0.0", "MacBookPro18,1", "4", "2"],
+        ["2026-02-01", "2.0.0", "MacBookAir10,1", "2", "1"],
+        ["2026-02-02", "1.0.0", "MacBookPro18,1", "3", "1"],
+        ["2026-02-02", "2.0.0", "MacBookAir10,1", "1", "1"],
+      ],
+    );
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-dc"]);
+      }
+      if (url.includes("/reports?filter")) {
+        return reportsResponse([
+          { id: "rpt-dc", name: "App Crashes Expanded", category: "PERFORMANCE" },
+        ]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([{ id: "inst-dc", processingDate: "2026-02-02" }]);
+      }
+      if (url.includes("/segments")) {
+        return segmentsResponse([{ id: "seg-dc", url: "https://s3.example.com/dc.tsv" }]);
+      }
+      return { data: [] };
+    });
+
+    mockFetch.mockResolvedValue(makeFetchResponse(tsv));
+
+    const result = await buildAnalyticsData("app-dc");
+    expect(result.dailyCrashes).toHaveLength(2);
+    expect(result.dailyCrashes[0]).toEqual({
+      date: "2026-02-01",
+      crashes: 6, // 4 + 2
+      uniqueDevices: 3, // 2 + 1
+    });
+    expect(result.dailyCrashes[1]).toEqual({
+      date: "2026-02-02",
+      crashes: 4, // 3 + 1
+      uniqueDevices: 2, // 1 + 1
+    });
+  });
+
+  it("returns empty array when no expanded crash data available", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-dc-empty"]);
+      }
+      return { data: [] };
+    });
+
+    const result = await buildAnalyticsData("app-dc-empty");
+    expect(result.dailyCrashes).toEqual([]);
   });
 });

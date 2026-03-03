@@ -15,6 +15,7 @@ const TABS = [
   { label: "Acquisition", segment: "/acquisition" },
   { label: "Usage", segment: "/usage" },
   { label: "Crashes", segment: "/crashes" },
+  { label: "Performance", segment: "/performance" },
 ];
 
 export default function AnalyticsLayout({
@@ -40,8 +41,8 @@ export default function AnalyticsLayout({
         : pathname.startsWith(`${base}${t.segment}`),
     )?.segment ?? "";
 
-  // Crash data is monthly aggregate – range picker doesn't apply
-  const showRangePicker = currentSegment !== "/crashes";
+  // Crashes = monthly aggregate, Performance = per-version – no range picker for either
+  const showRangePicker = currentSegment !== "/crashes" && currentSegment !== "/performance";
 
   return (
     <AnalyticsProvider appId={appId}>

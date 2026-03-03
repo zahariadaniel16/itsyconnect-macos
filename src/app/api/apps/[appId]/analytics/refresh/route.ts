@@ -15,6 +15,7 @@ export async function POST(
 
   // Invalidate cached analytics so the next GET returns pending
   cacheInvalidate(`analytics:${appId}`);
+  cacheInvalidate(`perf-metrics:${appId}`);
 
   // Fire-and-forget: rebuild in background
   buildAnalyticsData(appId).catch((err) => {

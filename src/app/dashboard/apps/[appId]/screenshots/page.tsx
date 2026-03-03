@@ -769,13 +769,12 @@ export default function ScreenshotsPage() {
   }
 
   function handleDeleteLocale(code: string) {
-    setLocales((prev) => {
-      const next = prev.filter((l) => l !== code);
-      if (selectedLocale === code) {
-        changeLocale(next[0] ?? "");
-      }
-      return next;
-    });
+    const needsLocaleSwitch = selectedLocale === code;
+    setLocales((prev) => prev.filter((l) => l !== code));
+    if (needsLocaleSwitch) {
+      const remaining = locales.filter((l) => l !== code);
+      changeLocale(remaining[0] ?? "");
+    }
     toast(`Removed ${localeName(code)}`, {
       action: {
         label: "Undo",

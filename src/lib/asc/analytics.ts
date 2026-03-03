@@ -6,8 +6,35 @@ const ANALYTICS_TTL = 60 * 60 * 1000; // 1 hour (sync worker refreshes hourly)
 const REPORT_ID_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (report request/report IDs never change)
 const INSTANCE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days (immutable past data)
 const TODAY_TTL = 10 * 60 * 1000; // 10 min (today's data may update)
+const PERF_METRICS_TTL = 6 * 60 * 60 * 1000; // 6 hours (changes only on new version releases)
 
 // ---------- Types ----------
+
+export interface PerfMetricPoint {
+  version: string;
+  value: number;
+}
+
+export interface PerfMetricDataset {
+  percentile: string;
+  device: string;
+  points: PerfMetricPoint[];
+}
+
+export interface PerfMetricSeries {
+  category: string;
+  metric: string;
+  unit: string;
+  platform: string;
+  datasets: PerfMetricDataset[];
+}
+
+export interface PerfRegression {
+  metric: string;
+  metricCategory: string;
+  latestVersion: string;
+  summary: string;
+}
 
 export interface AnalyticsData {
   dailyDownloads: Array<{ date: string; firstTime: number; redownload: number; update: number }>;
@@ -24,6 +51,9 @@ export interface AnalyticsData {
   discoverySources: Array<{ source: string; count: number; fill: string }>;
   crashesByVersion: Array<{ version: string; platform: string; crashes: number; uniqueDevices: number }>;
   crashesByDevice: Array<{ device: string; crashes: number; uniqueDevices: number }>;
+  dailyCrashes: Array<{ date: string; crashes: number; uniqueDevices: number }>;
+  perfMetrics: PerfMetricSeries[];
+  perfRegressions: PerfRegression[];
 }
 
 interface AscReportRequest {
@@ -49,6 +79,31 @@ interface AscReportSegment {
 interface AscListResponse<T> {
   data: T[];
   links?: { next?: string };
+}
+
+interface PerfPowerMetricsResponse {
+  insights?: {
+    regressions?: Array<{
+      metric: string;
+      metricCategory: string;
+      latestVersion: string;
+      summaryString: string;
+    }>;
+  };
+  productData?: Array<{
+    platform: string;
+    metricCategories?: Array<{
+      identifier: string;
+      metrics?: Array<{
+        identifier: string;
+        unit?: { displayName: string };
+        datasets?: Array<{
+          filterCriteria?: { device?: string; percentile?: string };
+          points?: Array<{ version: string; value: number }>;
+        }>;
+      }>;
+    }>;
+  }>;
 }
 
 // ---------- TSV parsing ----------
@@ -334,6 +389,64 @@ async function fetchReportData(
   }
 
   return deduped;
+}
+
+// ---------- Performance metrics ----------
+
+export async function fetchPerfPowerMetrics(
+  appId: string,
+): Promise<{ metrics: PerfMetricSeries[]; regressions: PerfRegression[] }> {
+  const cacheKey = `perf-metrics:${appId}`;
+  const cached = cacheGet<{ metrics: PerfMetricSeries[]; regressions: PerfRegression[] }>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await ascFetch<PerfPowerMetricsResponse>(
+      `/v1/apps/${appId}/perfPowerMetrics`,
+    );
+
+    const metrics: PerfMetricSeries[] = [];
+    for (const product of response.productData ?? []) {
+      for (const category of product.metricCategories ?? []) {
+        for (const metric of category.metrics ?? []) {
+          const datasets: PerfMetricDataset[] = [];
+          for (const dataset of metric.datasets ?? []) {
+            const points = dataset.points ?? [];
+            if (points.length > 0) {
+              datasets.push({
+                percentile: dataset.filterCriteria?.percentile ?? "unknown",
+                device: dataset.filterCriteria?.device ?? "unknown",
+                points: points.map((p) => ({ version: p.version, value: p.value })),
+              });
+            }
+          }
+          if (datasets.length > 0) {
+            metrics.push({
+              category: category.identifier,
+              metric: metric.identifier,
+              unit: metric.unit?.displayName ?? "",
+              platform: product.platform,
+              datasets,
+            });
+          }
+        }
+      }
+    }
+
+    const regressions: PerfRegression[] = (response.insights?.regressions ?? []).map((r) => ({
+      metric: r.metric,
+      metricCategory: r.metricCategory,
+      latestVersion: r.latestVersion,
+      summary: r.summaryString,
+    }));
+
+    const result = { metrics, regressions };
+    cacheSet(cacheKey, result, PERF_METRICS_TTL);
+    return result;
+  } catch (err) {
+    console.warn("[analytics] perfPowerMetrics fetch failed:", err);
+    return { metrics: [], regressions: [] };
+  }
 }
 
 // ---------- Aggregation ----------
@@ -639,6 +752,15 @@ function aggregateCrashesByDevice(
     .sort((a, b) => b.crashes - a.crashes);
 }
 
+function aggregateDailyCrashes(
+  rows: Array<Record<string, string>>,
+): AnalyticsData["dailyCrashes"] {
+  return groupByDate(rows, "Date", (dateRows) => ({
+    crashes: Math.round(sumField(dateRows, "Crashes")),
+    uniqueDevices: Math.round(sumField(dateRows, "Unique Devices")),
+  }));
+}
+
 function emptyAnalyticsData(): AnalyticsData {
   return {
     dailyDownloads: [],
@@ -655,6 +777,9 @@ function emptyAnalyticsData(): AnalyticsData {
     discoverySources: [],
     crashesByVersion: [],
     crashesByDevice: [],
+    dailyCrashes: [],
+    perfMetrics: [],
+    perfRegressions: [],
   };
 }
 
@@ -690,6 +815,9 @@ async function buildAnalyticsDataInner(
   // Each fetchReportData call queries ALL request IDs (ONGOING + SNAPSHOT)
   // and deduplicates instances by date. Per-instance caching ensures
   // only new/today's data is downloaded on refresh.
+  // perfPowerMetrics is a separate API, started concurrently.
+  const perfPromise = fetchPerfPowerMetrics(appId);
+
   const [
     downloadRows,
     purchaseRows,
@@ -699,6 +827,7 @@ async function buildAnalyticsDataInner(
     installDeleteRows,
     optInRows,
     crashRows,
+    expandedCrashRows,
   ] = await Promise.all([
     fetchReportData(requestIds, "COMMERCE", "App Downloads Standard", "DAILY", 200, 365),
     fetchReportData(requestIds, "COMMERCE", "App Store Purchases Standard", "DAILY", 200, 365),
@@ -708,7 +837,10 @@ async function buildAnalyticsDataInner(
     fetchReportData(requestIds, "APP_USAGE", "App Store Installation and Deletion Standard", "DAILY", 200, 365),
     fetchReportData(requestIds, "APP_USAGE", "App Opt In", "DAILY", 200, 365),
     fetchReportData(requestIds, "APP_USAGE", "App Crashes", "MONTHLY", 24, 24),
+    fetchReportData(requestIds, "PERFORMANCE", "App Crashes Expanded", "DAILY", 200, 365),
   ]);
+
+  const perfData = await perfPromise;
 
   // Filter rows by app's Apple ID (numeric) if present
   const filterByApp = (rows: Array<Record<string, string>>) => {
@@ -728,6 +860,7 @@ async function buildAnalyticsDataInner(
   const filteredInstallDeletes = filterByApp(installDeleteRows);
   const filteredOptIn = filterByApp(optInRows);
   const filteredCrashes = filterByApp(crashRows);
+  const filteredExpandedCrashes = filterByApp(expandedCrashRows);
 
   const data: AnalyticsData = {
     dailyDownloads: aggregateDownloads(filteredDownloads),
@@ -744,6 +877,9 @@ async function buildAnalyticsDataInner(
     discoverySources: aggregateDiscoverySources(filteredDownloads),
     crashesByVersion: aggregateCrashesByVersion(filteredCrashes),
     crashesByDevice: aggregateCrashesByDevice(filteredCrashes),
+    dailyCrashes: aggregateDailyCrashes(filteredExpandedCrashes),
+    perfMetrics: perfData.metrics,
+    perfRegressions: perfData.regressions,
   };
 
   // Log date coverage for key series
@@ -755,6 +891,8 @@ async function buildAnalyticsDataInner(
   logRange("Revenue", data.dailyRevenue);
   logRange("Engagement", data.dailyEngagement);
   logRange("Sessions", data.dailySessions);
+  logRange("Daily crashes", data.dailyCrashes);
+  console.log(`[analytics] perfMetrics: ${perfData.metrics.length} series, ${perfData.regressions.length} regressions`);
 
   cacheSet(cacheKey, data, ANALYTICS_TTL);
   return data;
