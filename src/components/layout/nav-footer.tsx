@@ -6,6 +6,7 @@ import {
   CaretUpDown,
   Check,
   GearSix,
+  GithubLogo,
   Plus,
 } from "@phosphor-icons/react";
 import { useFormDirty } from "@/lib/form-dirty-context";
@@ -142,6 +143,17 @@ export function NavFooter() {
               >
                 <GearSix size={16} />
                 Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open(
+                    "https://github.com/nickustinov/itsyconnect-macos/issues/new",
+                    "_blank",
+                  )
+                }
+              >
+                <GithubLogo size={16} />
+                Report an issue
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
