@@ -19,7 +19,8 @@ vi.mock("@/lib/cache", () => ({
 
 vi.mock("@/db", () => ({
   db: {
-    select: () => ({ from: () => ({ where: () => ({ get: () => null }) }) }),
+    // isBackfilled() returns truthy so backfill is skipped in tests
+    select: () => ({ from: () => ({ where: () => ({ get: () => ({ appId: "mock" }) }) }) }),
     insert: () => ({ values: () => ({ onConflictDoNothing: () => ({ run: () => {} }) }) }),
   },
 }));
@@ -816,19 +817,20 @@ describe("segment download", () => {
       return { data: [] };
     });
 
-    // Fail twice with TypeError (transient), succeed third time
-    mockFetch
-      .mockRejectedValueOnce(new TypeError("fetch failed"))
-      .mockRejectedValueOnce(new TypeError("fetch failed"))
-      .mockResolvedValueOnce(makeFetchResponse(tsv));
+    // Fail twice with TypeError (transient), succeed third time – URL-based to handle parallel fetches
+    let retryCallCount = 0;
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("s3.example.com/retry")) {
+        retryCallCount++;
+        if (retryCallCount <= 2) throw new TypeError("fetch failed");
+        return makeFetchResponse(tsv);
+      }
+      return makeFetchResponse("");
+    });
 
     const result = await buildAnalyticsData("app-retry");
     expect(result.dailyDownloads).toHaveLength(1);
-    // fetch should have been called 3 times for this segment
-    const s3Calls = mockFetch.mock.calls.filter(
-      (c: string[]) => c[0].includes("s3.example.com"),
-    );
-    expect(s3Calls.length).toBe(3);
+    expect(retryCallCount).toBe(3);
   });
 
   it("retries on ECONNRESET errors", async () => {
@@ -854,10 +856,15 @@ describe("segment download", () => {
       return { data: [] };
     });
 
-    const econnError = new Error("ECONNRESET");
-    mockFetch
-      .mockRejectedValueOnce(econnError)
-      .mockResolvedValueOnce(makeFetchResponse(tsv));
+    let econnCallCount = 0;
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("s3.example.com/econn")) {
+        econnCallCount++;
+        if (econnCallCount <= 1) throw new Error("ECONNRESET");
+        return makeFetchResponse(tsv);
+      }
+      return makeFetchResponse("");
+    });
 
     const result = await buildAnalyticsData("app-econn");
     expect(result.dailyDownloads).toHaveLength(1);
@@ -884,8 +891,15 @@ describe("segment download", () => {
       return { data: [] };
     });
 
-    // Return 403 – should throw on first attempt, no retries
-    mockFetch.mockResolvedValue(makeFetchResponse("Forbidden", false, 403));
+    // Return 403 for the target URL, empty for others
+    let s3_403_calls = 0;
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("s3.example.com/403")) {
+        s3_403_calls++;
+        return makeFetchResponse("Forbidden", false, 403);
+      }
+      return makeFetchResponse("");
+    });
 
     // buildAnalyticsData uses Promise.allSettled, so failed instances are logged and skipped
     const result = await buildAnalyticsData("app-403");
@@ -896,10 +910,7 @@ describe("segment download", () => {
     // Downloads should be empty since the instance download failed
     expect(result.dailyDownloads).toEqual([]);
     // fetch should have been called exactly once per segment (no retries)
-    const s3Calls = mockFetch.mock.calls.filter(
-      (c: string[]) => c[0].includes("s3.example.com/403"),
-    );
-    expect(s3Calls).toHaveLength(1);
+    expect(s3_403_calls).toBe(1);
   });
 });
 
@@ -2391,11 +2402,15 @@ describe("segment download – retry exhaustion", () => {
       return { data: [] };
     });
 
-    // Fail all 3 attempts with transient TypeError errors
-    mockFetch
-      .mockRejectedValueOnce(new TypeError("fetch failed"))
-      .mockRejectedValueOnce(new TypeError("fetch failed"))
-      .mockRejectedValueOnce(new TypeError("fetch failed"));
+    // Fail all 3 attempts with transient TypeError errors – URL-based to handle parallel fetches
+    let exhaustCallCount = 0;
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("s3.example.com/exhaust")) {
+        exhaustCallCount++;
+        throw new TypeError("fetch failed");
+      }
+      return makeFetchResponse("");
+    });
 
     // buildAnalyticsData uses Promise.allSettled, so the instance fails but doesn't throw
     const result = await buildAnalyticsData("app-exhaust");
@@ -2406,10 +2421,7 @@ describe("segment download – retry exhaustion", () => {
       expect.any(TypeError),
     );
     // fetch was called 3 times (all retries exhausted)
-    const s3Calls = mockFetch.mock.calls.filter(
-      (c: string[]) => c[0].includes("s3.example.com/exhaust"),
-    );
-    expect(s3Calls).toHaveLength(3);
+    expect(exhaustCallCount).toBe(3);
     // Downloads should be empty since all retries failed
     expect(result.dailyDownloads).toEqual([]);
   });
