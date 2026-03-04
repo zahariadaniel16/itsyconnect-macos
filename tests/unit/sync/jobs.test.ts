@@ -23,6 +23,11 @@ vi.mock("@/lib/asc/testflight", () => ({
   listGroups: (...args: unknown[]) => mockListGroups(...args),
 }));
 
+vi.mock("@/lib/license", () => ({
+  isPro: () => true,
+  FREE_LIMITS: { apps: 1, teams: 1 },
+}));
+
 import { syncApps, syncAnalytics, syncTestFlight } from "@/lib/sync/jobs";
 
 describe("syncApps", () => {
