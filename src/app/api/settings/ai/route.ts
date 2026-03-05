@@ -9,6 +9,7 @@ import { validateApiKey } from "@/lib/ai/provider-factory";
 import { parseBody } from "@/lib/api-helpers";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
+  ensureLocalModelLoaded,
   isLocalOpenAIProvider,
   normalizeOpenAICompatibleBaseUrl,
   resolveLocalOpenAIApiKey,
@@ -69,7 +70,21 @@ export async function PUT(request: Request) {
     .from(aiSettings)
     .get();
 
+  async function validateLocalModelLoad(candidateApiKey: string) {
+    if (!isLocalProvider) return null;
+    return ensureLocalModelLoaded(
+      modelId,
+      normalizedBaseUrl ?? undefined,
+      candidateApiKey,
+    );
+  }
+
   if (apiKey) {
+    const localLoadError = await validateLocalModelLoad(apiKey);
+    if (localLoadError) {
+      return NextResponse.json({ error: localLoadError }, { status: 422 });
+    }
+
     // Validate the key before saving
     const validationError = await validateApiKey(
       provider,
@@ -101,6 +116,10 @@ export async function PUT(request: Request) {
     if (!existing) {
       if (isLocalProvider) {
         const localApiKey = resolveLocalOpenAIApiKey(undefined);
+        const localLoadError = await validateLocalModelLoad(localApiKey);
+        if (localLoadError) {
+          return NextResponse.json({ error: localLoadError }, { status: 422 });
+        }
         const validationError = await validateApiKey(
           provider,
           modelId,
@@ -137,6 +156,10 @@ export async function PUT(request: Request) {
     if (provider !== existing.provider) {
       if (isLocalProvider) {
         const localApiKey = resolveLocalOpenAIApiKey(undefined);
+        const localLoadError = await validateLocalModelLoad(localApiKey);
+        if (localLoadError) {
+          return NextResponse.json({ error: localLoadError }, { status: 422 });
+        }
         const validationError = await validateApiKey(
           provider,
           modelId,
@@ -169,6 +192,14 @@ export async function PUT(request: Request) {
         { error: "Switching provider requires a new API key" },
         { status: 400 },
       );
+    }
+
+    if (isLocalProvider) {
+      const localApiKey = resolveLocalOpenAIApiKey(undefined);
+      const localLoadError = await validateLocalModelLoad(localApiKey);
+      if (localLoadError) {
+        return NextResponse.json({ error: localLoadError }, { status: 422 });
+      }
     }
 
     db.update(aiSettings)

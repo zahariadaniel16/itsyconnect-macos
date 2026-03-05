@@ -9,6 +9,7 @@ import { validateApiKey } from "@/lib/ai/provider-factory";
 import { parseBody } from "@/lib/api-helpers";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
+  ensureLocalModelLoaded,
   isLocalOpenAIProvider,
   normalizeOpenAICompatibleBaseUrl,
   resolveLocalOpenAIApiKey,
@@ -80,6 +81,17 @@ export async function POST(request: Request) {
 
   // Validate AI key before saving anything
   if (hasAIConfig) {
+    if (isLocalProvider) {
+      const loadError = await ensureLocalModelLoaded(
+        aiModelId!,
+        normalizedAiBaseUrl ?? undefined,
+        resolvedAiApiKey!,
+      );
+      if (loadError) {
+        return NextResponse.json({ error: loadError }, { status: 422 });
+      }
+    }
+
     const aiValidationError = await validateApiKey(
       aiProvider!,
       aiModelId!,
