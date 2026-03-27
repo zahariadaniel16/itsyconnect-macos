@@ -5,21 +5,7 @@ import { IS_MAS } from "@/lib/license-shared";
 import { parseBody } from "@/lib/api-helpers";
 
 export async function GET() {
-  const license = getLicense();
-
-  if (!license) {
-    return NextResponse.json({ isPro: false });
-  }
-
-  if (license.key === "storekit") {
-    return NextResponse.json({ isPro: true, source: "storekit" });
-  }
-
-  return NextResponse.json({
-    isPro: true,
-    email: license.email,
-    maskedKey: maskKey(license.key),
-  });
+  return NextResponse.json({ isPro: true });
 }
 
 const activateSchema = z.object({
@@ -62,7 +48,9 @@ export async function POST(request: Request) {
     });
   } catch {
     return NextResponse.json(
-      { error: "Could not reach LemonSqueezy – check your internet connection" },
+      {
+        error: "Could not reach LemonSqueezy – check your internet connection",
+      },
       { status: 502 },
     );
   }
